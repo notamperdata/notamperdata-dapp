@@ -1,8 +1,7 @@
 import React from 'react';
 
-interface LoadingSpinnerProps extends React.HTMLAttributes<HTMLDivElement> {}
-
-export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ 
+// We're extending HTMLAttributes directly without an empty interface
+export const LoadingSpinner: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ 
   className = "",
   ...props 
 }) => {

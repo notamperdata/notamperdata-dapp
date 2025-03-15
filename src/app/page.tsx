@@ -1,4 +1,3 @@
-// app/page.tsx
 import Link from 'next/link';
 
 export default function Home() {
@@ -31,7 +30,7 @@ export default function Home() {
                     <div className="flex flex-wrap justify-center gap-y-6 gap-x-12">
                       <div className="text-center">
                         <h3 className="text-lg font-semibold text-gray-900">Privacy-Preserving</h3>
-                        <p className="mt-2 text-gray-600">Only cryptographic hashes, not actual response data, leave Google's ecosystem</p>
+                        <p className="mt-2 text-gray-600">Only cryptographic hashes, not actual response data, leave Google&apos;s ecosystem</p>
                       </div>
                       <div className="text-center">
                         <h3 className="text-lg font-semibold text-gray-900">Deterministic Verification</h3>

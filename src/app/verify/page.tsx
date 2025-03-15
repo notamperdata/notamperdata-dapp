@@ -1,4 +1,3 @@
-// app/verify/page.tsx
 "use client";
 
 import { useState } from 'react';
@@ -65,6 +64,7 @@ export default function VerifyPage() {
         setGeneratedHash(hashToVerify);
       } catch (err) {
         setError('Failed to generate hash from content');
+        console.log(err)
         return;
       }
     }
