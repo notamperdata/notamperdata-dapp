@@ -1,4 +1,3 @@
-// app/api/formhash/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import FormHash from '@/models/FormHash';

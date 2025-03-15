@@ -1,5 +1,22 @@
 ###
-GET http://localhost:3000/api/hello
+POST http://localhost:3000/api/formhash
+Content-Type: application/json
 
+{
+  "hash": "b5d4045c3f466fa91fe2cc6abe79232a1a57cdf104f7a26e716e0a1e2789df78",
+  "metadata": {
+    "formId": "1FAIpQLSeQmYypY1CdS7-jGbsLdJW8pF6h3R7GlMjLH9",
+    "responseId": "2_ABaOnud_Wj-JNRC-eQbKaXV4KnFIBwHWCyeL9lz21Dqv9sjH3KT3Ss",
+    "timestamp": "2025-03-15T14:30:45Z"
+  }
+}
+###
 
+###
+POST http://localhost:3000/api/verify
+Content-Type: application/json
+
+{
+  "hash": "b5d4045c3f466fa91fe2cc6abe79232a1a57cdf104f7a26e716e0a1e2789df78"
+}
 ###
