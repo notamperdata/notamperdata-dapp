@@ -103,13 +103,16 @@ export default function VerifyPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <main className="flex flex-col items-center justify-center min-h-[70vh]">
-        <h1 className="text-3xl font-bold mb-8 text-center">
-          AdaForms Response Verification
+        <h1 className="text-3xl font-bold mb-8 text-center text-[#4285F4]">
+          Adaverc Response Verification
         </h1>
 
         <div className="w-full max-w-lg">
           <div className="bg-white shadow-md rounded-lg p-6 border border-gray-200">
-            <h2 className="text-xl font-semibold mb-4">Verify Response</h2>
+            <div className="border-l-4 border-[#4285F4] pl-3 mb-6">
+              <h2 className="text-xl font-semibold text-[#202124]">Verify Response</h2>
+              <p className="text-sm text-gray-500">Check if a form response has been recorded on the blockchain</p>
+            </div>
             
             {/* Verification Method Selector */}
             <div className="mb-6">
@@ -118,7 +121,7 @@ export default function VerifyPage() {
                   onClick={() => setVerificationMethod('hash')}
                   className={`flex-1 py-2 px-4 text-sm font-medium ${
                     verificationMethod === 'hash'
-                      ? 'bg-indigo-600 text-white'
+                      ? 'bg-[#4285F4] text-white'
                       : 'bg-white text-gray-700 hover:bg-gray-50'
                   }`}
                 >
@@ -128,7 +131,7 @@ export default function VerifyPage() {
                   onClick={() => setVerificationMethod('content')}
                   className={`flex-1 py-2 px-4 text-sm font-medium ${
                     verificationMethod === 'content'
-                      ? 'bg-indigo-600 text-white'
+                      ? 'bg-[#4285F4] text-white'
                       : 'bg-white text-gray-700 hover:bg-gray-50'
                   }`}
                 >
@@ -149,7 +152,7 @@ export default function VerifyPage() {
                   value={hash}
                   onChange={(e) => setHash(e.target.value)}
                   placeholder="Enter the SHA-256 hash"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#4285F4] focus:border-[#4285F4]"
                 />
               </div>
             )}
@@ -166,7 +169,7 @@ export default function VerifyPage() {
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="Enter the content to hash (JSON or text)"
                   rows={5}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#4285F4] focus:border-[#4285F4]"
                 />
                 <p className="mt-1 text-xs text-gray-500">
                   Note: Whitespace will be trimmed before hashing.
@@ -178,7 +181,7 @@ export default function VerifyPage() {
             <button
               onClick={handleVerify}
               disabled={loading}
-              className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full bg-[#4285F4] text-white py-2 px-4 rounded-md hover:bg-[#366ac7] focus:outline-none focus:ring-2 focus:ring-[#4285F4] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? (
                 <span className="flex items-center justify-center">
@@ -192,7 +195,7 @@ export default function VerifyPage() {
             
             {/* Show Generated Hash (Content Mode) */}
             {verificationMethod === 'content' && generatedHash && (
-              <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-md">
+              <div className="mt-4 p-3 bg-[#e8f0fe] border-l-4 border-[#4285F4] rounded-md">
                 <h4 className="text-sm font-medium text-gray-700">Generated Hash:</h4>
                 <p className="mt-1 text-xs font-mono break-all">{generatedHash}</p>
               </div>
@@ -200,7 +203,7 @@ export default function VerifyPage() {
             
             {/* Error Display */}
             {error && (
-              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-700">
+              <div className="mt-4 p-3 bg-red-50 border-l-4 border-red-400 rounded-md text-red-700">
                 {error}
               </div>
             )}
@@ -236,6 +239,13 @@ export default function VerifyPage() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+        
+        <div className="mt-8 text-center text-sm text-gray-500">
+          <div className="flex items-center justify-center">
+            <img src="/api/placeholder/20/20" alt="Adaverc Logo" className="mr-2" />
+            <p>Powered by Cardano blockchain technology</p>
           </div>
         </div>
       </main>
