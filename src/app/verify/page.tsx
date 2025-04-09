@@ -26,21 +26,55 @@ export default function VerifyPage() {
   const [error, setError] = useState<string | null>(null);
   const [generatedHash, setGeneratedHash] = useState<string | null>(null);
 
-  // Function to create SHA-256 hash from a string
-  const generateSHA256Hash = async (text: string): Promise<string> => {
-    // Canonicalize the input by trimming whitespace
-    const canonicalText = text.trim();
-    
-    // Use the Web Crypto API to create a hash
-    const encoder = new TextEncoder();
-    const data = encoder.encode(canonicalText);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    
-    // Convert the hash to a hex string
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    
-    return hashHex;
+  // Function to create a deterministic hash from any input
+  // This matches the hashing algorithm used in the add-on and API
+  const generateDeterministicHash = async (input: unknown): Promise<string> => {
+    try {
+      // Convert to string in a deterministic way (stable ordering of keys)
+      const jsonString = JSON.stringify(input, function(key, value) {
+        // Handle arrays to ensure consistent ordering
+        if (Array.isArray(value)) {
+          // Sort simple arrays by their string representation
+          if (value.every(item => typeof item !== 'object')) {
+            return [...value].sort();
+          }
+          
+          // For arrays of objects, sort by stringifying their contents
+          return value.map(item => JSON.stringify(item)).sort().map(item => {
+            try {
+              return JSON.parse(item);
+            } catch (_error) {
+              console.log(_error)
+              return item;
+            }
+          });
+        }
+        
+        // Handle objects to ensure consistent key ordering
+        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+          return Object.keys(value).sort().reduce((obj: Record<string, unknown>, k) => {
+            obj[k] = value[k];
+            return obj;
+          }, {});
+        }
+        
+        return value;
+      });
+      
+      // Use the Web Crypto API to create SHA-256 hash
+      const encoder = new TextEncoder();
+      const data = encoder.encode(jsonString);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      
+      // Convert the hash to a hex string
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      
+      return hashHex;
+    } catch (err) {
+      console.error('Error generating hash:', err);
+      throw new Error('Failed to generate hash');
+    }
   };
 
   const handleVerify = async () => {
@@ -59,12 +93,22 @@ export default function VerifyPage() {
       }
       
       try {
-        // Generate hash from content
-        hashToVerify = await generateSHA256Hash(content);
+        // Try to parse content as JSON, if not, use as plain text
+        let contentValue: unknown;
+        try {
+          contentValue = JSON.parse(content);
+        } catch (_e) {
+          // If not valid JSON, use as plain text\
+          console.log(_e)
+          contentValue = content.trim();
+        }
+        
+        // Generate hash from content using the consistent algorithm
+        hashToVerify = await generateDeterministicHash(contentValue);
         setGeneratedHash(hashToVerify);
       } catch (err) {
         setError('Failed to generate hash from content');
-        console.log(err)
+        console.log(err);
         return;
       }
     }
@@ -172,7 +216,7 @@ export default function VerifyPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#4285F4] focus:border-[#4285F4]"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Note: Whitespace will be trimmed before hashing.
+                  Note: Enter either valid JSON or plain text. The system will try to parse JSON first.
                 </p>
               </div>
             )}
