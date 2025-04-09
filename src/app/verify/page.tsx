@@ -27,43 +27,33 @@ export default function VerifyPage() {
   const [generatedHash, setGeneratedHash] = useState<string | null>(null);
 
   // Function to create a deterministic hash from any input
-  // This matches the hashing algorithm used in the add-on and API
+  // Exactly matching the server-side implementation
   const generateDeterministicHash = async (input: unknown): Promise<string> => {
     try {
-      // Convert to string in a deterministic way (stable ordering of keys)
-      const jsonString = JSON.stringify(input, function(key, value) {
-        // Handle arrays to ensure consistent ordering
-        if (Array.isArray(value)) {
-          // Sort simple arrays by their string representation
-          if (value.every(item => typeof item !== 'object')) {
-            return [...value].sort();
-          }
-          
-          // For arrays of objects, sort by stringifying their contents
-          return value.map(item => JSON.stringify(item)).sort().map(item => {
-            try {
-              return JSON.parse(item);
-            } catch (_error) {
-              console.log(_error)
-              return item;
-            }
-          });
-        }
-        
-        // Handle objects to ensure consistent key ordering
-        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-          return Object.keys(value).sort().reduce((obj: Record<string, unknown>, k) => {
-            obj[k] = value[k];
-            return obj;
-          }, {});
-        }
-        
-        return value;
-      });
+      // First, ensure we're working with the JSON representation
+      // This is crucial for consistent hashing across client and server
+      let jsonData: string;
       
-      // Use the Web Crypto API to create SHA-256 hash
+      if (typeof input === 'string') {
+        // If the input is already a string, try to parse it as JSON
+        // If it's not valid JSON, just use the string as-is
+        try {
+          const parsed = JSON.parse(input);
+          // Re-stringify with stable ordering
+          jsonData = JSON.stringify(parsed, replacer);
+        } catch (e) {
+          console.log("e", e);
+          // Not valid JSON, use as plain text
+          jsonData = input;
+        }
+      } else {
+        // For objects or other types, stringify with replacer function
+        jsonData = JSON.stringify(input, replacer);
+      }
+      
+      // Hash the prepared JSON string
       const encoder = new TextEncoder();
-      const data = encoder.encode(jsonString);
+      const data = encoder.encode(jsonData);
       const hashBuffer = await crypto.subtle.digest('SHA-256', data);
       
       // Convert the hash to a hex string
@@ -76,6 +66,43 @@ export default function VerifyPage() {
       throw new Error('Failed to generate hash');
     }
   };
+  
+  // Replacer function for JSON.stringify that ensures deterministic output
+  function replacer(key: string, value: unknown) {
+    // Handle arrays to ensure consistent ordering
+    if (Array.isArray(value)) {
+      // Sort simple arrays by their string representation
+      if (value.every(item => typeof item !== 'object' || item === null)) {
+        return [...value].sort();
+      }
+      
+      // For arrays of objects, sort by stringifying their contents
+      return value
+        .map(item => JSON.stringify(item, replacer))
+        .sort()
+        .map(item => {
+          try {
+            return JSON.parse(item);
+          } catch (_error) {
+            console.log("_error", _error);
+
+            return item;
+          }
+        });
+    }
+    
+    // Handle objects to ensure consistent key ordering
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      return Object.keys(value)
+        .sort()
+        .reduce((result: Record<string, unknown>, key) => {
+          result[key] = (value as Record<string, unknown>)[key];
+          return result;
+        }, {});
+    }
+    
+    return value;
+  }
 
   const handleVerify = async () => {
     let hashToVerify: string;
@@ -93,18 +120,21 @@ export default function VerifyPage() {
       }
       
       try {
-        // Try to parse content as JSON, if not, use as plain text
+        // Parse content accordingly
         let contentValue: unknown;
         try {
           contentValue = JSON.parse(content);
         } catch (_e) {
-          // If not valid JSON, use as plain text\
-          console.log(_e)
-          contentValue = content.trim();
+          console.log("", _e);
+
+          // Not valid JSON, use as plain text
+          contentValue = content;
         }
         
-        // Generate hash from content using the consistent algorithm
+        // Generate hash from content using our deterministic algorithm
         hashToVerify = await generateDeterministicHash(contentValue);
+        console.log("Generated hash from content:", hashToVerify);
+        console.log("Original content:", content);
         setGeneratedHash(hashToVerify);
       } catch (err) {
         setError('Failed to generate hash from content');
@@ -117,7 +147,8 @@ export default function VerifyPage() {
     setError(null);
     
     try {
-      const response = await fetch('/api/verify', {
+      console.log("Verifying hash:", hashToVerify);
+      const response = await fetch('http://localhost:3002/api/verify', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -125,12 +156,13 @@ export default function VerifyPage() {
         body: JSON.stringify({ hash: hashToVerify }),
       });
       
-      const data = await response.json();
-      
       if (!response.ok) {
-        throw new Error(data.error || 'Verification failed');
+        const errorText = await response.text();
+        console.error("Verification API error:", errorText);
+        throw new Error("The hash could not be verified");
       }
       
+      const data = await response.json();
       setResult(data);
     } catch (err) {
       if (err instanceof Error) {
@@ -155,7 +187,7 @@ export default function VerifyPage() {
           <div className="bg-white shadow-md rounded-lg p-6 border border-gray-200">
             <div className="border-l-4 border-[#4285F4] pl-3 mb-6">
               <h2 className="text-xl font-semibold text-[#202124]">Verify Dataset </h2>
-              <p className="text-sm text-gray-500">Check research data validity&apos;s  using blockchain</p>
+              <p className="text-sm text-gray-500">Check research data validity&apos;s using blockchain</p>
             </div>
             
             {/* Verification Method Selector */}
@@ -196,7 +228,7 @@ export default function VerifyPage() {
                   value={hash}
                   onChange={(e) => setHash(e.target.value)}
                   placeholder="Enter the SHA-256 hash"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#4285F4] focus:border-[#4285F4]"
+                  className="w-full text-black px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#4285F4] focus:border-[#4285F4]"
                 />
               </div>
             )}
@@ -213,10 +245,10 @@ export default function VerifyPage() {
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="Enter the content to hash (JSON or text)"
                   rows={5}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#4285F4] focus:border-[#4285F4]"
+                  className="w-full text-black px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#4285F4] focus:border-[#4285F4]"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Note: Enter either valid JSON or plain text. The system will try to parse JSON first.
+                  Note: Enter either valid JSON or plain text.
                 </p>
               </div>
             )}
@@ -263,18 +295,18 @@ export default function VerifyPage() {
                 {result.verified && result.metadata && (
                   <div className="mt-3 pt-3 border-t border-gray-200">
                     <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-2 text-sm">
-                      <span className="font-semibold">Form ID:</span>
+                      <span className="font-semibold text-gray-600">Form ID:</span>
                       <span className="text-gray-700">{result.metadata.formId}</span>
                       
-                      <span className="font-semibold">Response ID:</span>
+                      <span className="font-semibold text-gray-600">Response ID:</span>
                       <span className="text-gray-700">{result.metadata.responseId}</span>
                       
-                      <span className="font-semibold">Timestamp:</span>
+                      <span className="font-semibold text-gray-600">Timestamp:</span>
                       <span className="text-gray-700">{new Date(result.metadata.timestamp).toLocaleString()}</span>
                       
                       {result.storedAt && (
                         <>
-                          <span className="font-semibold">Stored:</span>
+                          <span className="font-semibold text-gray-600">Stored:</span>
                           <span className="text-gray-700">{new Date(result.storedAt).toLocaleString()}</span>
                         </>
                       )}

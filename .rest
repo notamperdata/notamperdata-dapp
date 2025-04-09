@@ -1,22 +1,112 @@
-###
-POST http://localhost:3000/api/formhash
+# Adaverc API Testing
+# This file contains requests for testing the Adaverc API endpoints with REST Client extension.
+# Use "Send Request" feature to execute each request.
+
+###########################################
+# 1. CREATE HASH (Utility for development)
+###########################################
+
+### Create hash from JSON data
+# This endpoint creates a hash from structured data using the same algorithm as the add-on
+POST http://localhost:3002/api/createhash
 Content-Type: application/json
 
 {
-  "hash": "b5d4045c3f466fa91fe2cc6abe79232a1a57cdf104f7a26e716e0a1e2789df78",
+  "data": {
+    "responseId": "test-response-123",
+    "timestamp": "2025-04-09T15:32:10Z",
+    "items": [
+      {
+        "itemId": "item-1",
+        "title": "What is your name?",
+        "type": "TEXT",
+        "response": "John Doe"
+      },
+      {
+        "itemId": "item-2",
+        "title": "Select your favorite colors",
+        "type": "CHECKBOX",
+        "response": ["Blue", "Green", "Red"]
+      }
+    ]
+  }
+}
+
+### Create hash from plain text
+# Useful for quick testing with simple text input
+POST http://localhost:3002/api/createhash
+Content-Type: application/json
+
+{
+  "plainText": "This is a test response that needs to be hashed"
+}
+
+### Create hash using GET request (browser-friendly)
+# Use this for quick testing directly in a browser
+GET http://localhost:3002/api/createhash?text=Simple test text
+
+###########################################
+# 2. STORE HASH (Form submission endpoint)
+###########################################
+
+### Store a hash in the database
+# This endpoint is called by the Google Forms add-on when a form is submitted
+POST http://localhost:3002/api/storehash
+Content-Type: application/json
+
+{
+  "hash": "ebc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b",
   "metadata": {
     "formId": "1FAIpQLSeQmYypY1CdS7-jGbsLdJW8pF6h3R7GlMjLH9",
     "responseId": "2_ABaOnud_Wj-JNRC-eQbKaXV4KnFIBwHWCyeL9lz21Dqv9sjH3KT3Ss",
     "timestamp": "2025-03-15T14:30:45Z"
   }
 }
-###
 
-###
-POST http://localhost:3000/api/verify
+### Store a hash with dynamically generated values
+# Use this after creating a hash with the createhash endpoint
+POST http://localhost:3002/api/storehash
 Content-Type: application/json
 
 {
-  "hash": "b5d4045c3f466fa91fe2cc6abe79232a1a57cdf104f7a26e716e0a1e2789df78"
+   "hash": "ebc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b",
+  "metadata": {
+    "formId": "template-form-id",
+    "responseId": "test-1744184226739",
+    "timestamp": "2025-04-09T07:37:06.739Z"
+  }
 }
-###
+
+###########################################
+# 3. VERIFY HASH (Verification endpoint)
+###########################################
+
+### Verify a known hash
+# This endpoint checks if a hash exists in the database
+POST http://localhost:3002/api/verify
+Content-Type: application/json
+
+{
+  "hash": "ebc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b"
+}
+
+### Verify a dynamically created hash
+# Use this after creating and storing a hash with previous endpoints
+POST http://localhost:3002/api/verify
+Content-Type: application/json
+
+{
+  "hash": "PASTE_HASH_FROM_CREATEHASH_RESPONSE"
+}
+
+###########################################
+# 4. SYSTEM HEALTH & DIAGNOSTICS
+###########################################
+
+### Health check endpoint
+# Use this to verify the API server is running properly
+GET http://localhost:3002/api/health
+
+### API Server Information
+# Returns details about the server configuration and environment
+GET http://localhost:3002/api/info

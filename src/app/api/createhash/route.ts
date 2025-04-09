@@ -77,7 +77,6 @@ export async function POST(request: NextRequest) {
       success: true,
       hash: hash,
       metadata: metadata,
-      originalValue: valueToHash
     });
   } catch (error) {
     console.error('API error:', error);
@@ -113,8 +112,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       hash: hash,
-      metadata: metadata,
-      originalValue: textParam
+      metadata: metadata
     });
   } catch (error) {
     console.error('API error:', error);
