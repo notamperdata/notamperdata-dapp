@@ -104,14 +104,14 @@ export default function VerifyPage() {
     <div className="container mx-auto px-4 py-8">
       <main className="flex flex-col items-center justify-center min-h-[70vh]">
         <h1 className="text-3xl font-bold mb-8 text-center text-[#4285F4]">
-          Adaverc Response Verification
+          Adaverc Dataset Verification
         </h1>
 
         <div className="w-full max-w-lg">
           <div className="bg-white shadow-md rounded-lg p-6 border border-gray-200">
             <div className="border-l-4 border-[#4285F4] pl-3 mb-6">
-              <h2 className="text-xl font-semibold text-[#202124]">Verify Response</h2>
-              <p className="text-sm text-gray-500">Check if a form response has been recorded on the blockchain</p>
+              <h2 className="text-xl font-semibold text-[#202124]">Verify Dataset </h2>
+              <p className="text-sm text-gray-500">Check research data validity&apos;s  using blockchain</p>
             </div>
             
             {/* Verification Method Selector */}
@@ -197,7 +197,7 @@ export default function VerifyPage() {
             {verificationMethod === 'content' && generatedHash && (
               <div className="mt-4 p-3 bg-[#e8f0fe] border-l-4 border-[#4285F4] rounded-md">
                 <h4 className="text-sm font-medium text-gray-700">Generated Hash:</h4>
-                <p className="mt-1 text-xs font-mono break-all">{generatedHash}</p>
+                <p className="mt-1 text-xs font-mono break-all text-gray-600">{generatedHash}</p>
               </div>
             )}
             
@@ -244,8 +244,7 @@ export default function VerifyPage() {
         
         <div className="mt-8 text-center text-sm text-gray-500">
           <div className="flex items-center justify-center">
-            <img src="/api/placeholder/20/20" alt="Adaverc Logo" className="mr-2" />
-            <p>Powered by Cardano blockchain technology</p>
+                   <p>Powered by Cardano blockchain technology</p>
           </div>
         </div>
       </main>

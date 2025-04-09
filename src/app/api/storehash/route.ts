@@ -43,10 +43,10 @@ export async function POST(request: NextRequest) {
       id: formHash._id,
       timestamp: new Date().toISOString()
     });
-  } catch (error:any) {
+  } catch (error) {
     console.error('API error:', error);
     return NextResponse.json(
-      { error: 'Internal server error', message: error.message },
+      { error: 'Internal server error', message: error },
       { status: 500 }
     );
   }

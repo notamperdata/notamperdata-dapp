@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import Image from 'next/image';
 
 export default function Home() {
   return (
@@ -13,7 +12,7 @@ export default function Home() {
                   {/* <img src="/api/placeholder/60/60" alt="Adaverc Logo" /> */}
                 </div>
                 <h1 className="text-4xl font-bold tracking-tight text-[#202124] sm:text-6xl">
-                  Verify Google Forms Responses with Blockchain
+                  Verify Research Data with Blockchain
                 </h1>
                 <p className="mt-6 text-lg leading-8 text-gray-600">
                   Adaverc provides immutable verification for Google Forms responses, ensuring data integrity through Cardano blockchain technology.
@@ -39,7 +38,7 @@ export default function Home() {
                           </svg>
                         </div>
                         <h3 className="mt-3 text-lg font-semibold text-[#202124]">Privacy-Preserving</h3>
-                        <p className="mt-2 text-gray-600">Only cryptographic hashes, not actual response data, leave Google's ecosystem</p>
+                        <p className="mt-2 text-gray-600">Only cryptographic hashes, not actual response data, leave Google&apos;s ecosystem</p>
                       </div>
                       <div className="text-center max-w-xs">
                         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#34A853] bg-opacity-10">
