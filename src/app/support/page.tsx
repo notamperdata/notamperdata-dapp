@@ -130,8 +130,8 @@ export default function SupportPage() {
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h4 className="font-bold text-gray-900 mb-2">Email Support</h4>
                 <p className="text-gray-700">
-                  <a href="mailto:support@adaverc.com" className="text-[#0033AD] hover:underline font-medium">
-                    support@adaverc.com
+                  <a href="mailto:johnndigirigi01@gmail.com" className="text-[#0033AD] hover:underline font-medium">
+                    johnndigirigi01@gmail.com
                   </a>
                 </p>
                 <p className="text-sm text-gray-600 mt-1">Response within 24-48 hours</p>

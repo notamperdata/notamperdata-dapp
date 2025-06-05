@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
-import {  Roboto } from 'next/font/google';
+import { Roboto } from 'next/font/google';
 import Link from 'next/link';
+import Image from 'next/image';
 import './globals.css';
 
 const roboto = Roboto({ 
@@ -11,7 +12,7 @@ const roboto = Roboto({
 });
 
 export const metadata: Metadata = {
-  title: 'AdaForms - Blockchain Verification for Google Forms',
+  title: 'Adaverc - Blockchain Verification for Google Forms',
   description: 'Verify the integrity of Google Form responses using Cardano blockchain technology',
 };
 
@@ -28,7 +29,13 @@ export default function RootLayout({
             <div className="flex justify-between h-16 items-center">
               <div className="flex items-center">
                 <Link href="/" className="flex-shrink-0 flex items-center">
-                  {/* <img src="/api/placeholder/24/24" alt="Adaverc Logo" className="mr-2" /> */}
+                  <Image 
+                    src="/Logo.png" 
+                    alt="Adaverc Logo" 
+                    width={32} 
+                    height={32} 
+                    className="mr-3"
+                  />
                   <span className="text-xl font-bold text-[#4285F4]">Ada<span className="text-[#0033AD]">verc</span></span>
                 </Link>
               </div>
@@ -40,13 +47,15 @@ export default function RootLayout({
                   Verify
                 </Link>
                 <Link 
-                  href="/docs" 
+                  href="/support" 
                   className="text-gray-700 hover:text-[#4285F4] hover:bg-[#e8f0fe] px-3 py-2 rounded-md text-sm font-medium transition-colors"
                 >
-                  Documentation
+                  Support
                 </Link>
                 <a 
-                  href="#" 
+                  href="https://workspace.google.com/marketplace/app/adaverc" 
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="ml-3 bg-[#0033AD] text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-[#002A8C] transition-colors"
                 >
                   Get Add-on
@@ -55,33 +64,37 @@ export default function RootLayout({
             </div>
           </div>
         </header>
+        
         <div className='bg-white'>
-        {children}
-
+          {children}
         </div>
         
         <footer className="bg-white border-t border-gray-200">
           <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col items-center md:flex-row md:justify-between">
               <div className="flex items-center mb-4 md:mb-0">
-                <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center border-2 border-[#0033AD] mr-2">
-                  <div className="w-3 h-3 bg-[#0033AD] rounded-full"></div>
-                </div>
-                <span className="text-sm font-semibold text-[#0033AD]">AdaForms</span>
+                <Image 
+                  src="/Logo.png" 
+                  alt="Adaverc Logo" 
+                  width={24} 
+                  height={24} 
+                  className="mr-2"
+                />
+                <span className="text-sm font-semibold text-[#0033AD]">Adaverc</span>
               </div>
               <div className="flex space-x-6">
-                <a href="#" className="text-sm text-gray-500 hover:text-[#0033AD]">
+                <Link href="/privacy" className="text-sm text-gray-500 hover:text-[#0033AD]">
                   Privacy Policy
-                </a>
-                <a href="#" className="text-sm text-gray-500 hover:text-[#0033AD]">
+                </Link>
+                <Link href="/terms" className="text-sm text-gray-500 hover:text-[#0033AD]">
                   Terms of Service
-                </a>
-                <a href="#" className="text-sm text-gray-500 hover:text-[#0033AD]">
+                </Link>
+                <Link href="/support" className="text-sm text-gray-500 hover:text-[#0033AD]">
                   Contact
-                </a>
+                </Link>
               </div>
               <p className="text-sm text-gray-500 mt-4 md:mt-0">
-                &copy; {new Date().getFullYear()} AdaForms. All rights reserved.
+                &copy; {new Date().getFullYear()} Adaverc. All rights reserved.
               </p>
             </div>
           </div>

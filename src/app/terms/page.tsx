@@ -125,8 +125,8 @@ export default function TermsPage() {
                 For questions about these Terms, please contact us at:
               </p>
               <div className="text-gray-800">
-                <p className="mb-2"><strong>Email:</strong> <a href="mailto:legal@adaverc.com" className="text-[#0033AD] hover:underline">legal@adaverc.com</a></p>
-                <p><strong>Website:</strong> <a href="https://adaverc.com/support" className="text-[#0033AD] hover:underline">https://adaverc.com/support</a></p>
+                <p className="mb-2"><strong>Email:</strong> <a href="mailto:johnndigirigi01@gmail.com" className="text-[#0033AD] hover:underline">johnndigirigi01@gmail.com</a></p>
+                <p><strong>Website:</strong> <a href="https://adaverc.vercel.app/support" className="text-[#0033AD] hover:underline">https://adaverc.vercel.app/support</a></p>
               </div>
             </div>
           </section>

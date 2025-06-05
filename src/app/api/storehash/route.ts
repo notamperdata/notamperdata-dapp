@@ -4,6 +4,7 @@ import FormHash from '@/models/FormHash';
 
 // Improved error handling in API route
 export async function POST(request: NextRequest) {
+  console.log("STORE HASH",request.body)
   try {
     const body = await request.json();
     const { hash, metadata } = body;

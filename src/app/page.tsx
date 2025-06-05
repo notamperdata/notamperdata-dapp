@@ -9,7 +9,7 @@ export default function Home() {
             <div className="mx-auto max-w-7xl px-6 lg:px-8">
               <div className="mx-auto max-w-2xl text-center">
                 <div className="flex justify-center mb-6">
-                  {/* <img src="/api/placeholder/60/60" alt="Adaverc Logo" /> */}
+                  <img src="Logo.png" alt="Adaverc Logo" />
                 </div>
                 <h1 className="text-4xl font-bold tracking-tight text-[#202124] sm:text-6xl">
                   Verify Research Data with Blockchain
