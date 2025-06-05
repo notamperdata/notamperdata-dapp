@@ -14,7 +14,7 @@ export default function PrivacyPage() {
           <section className="mb-10">
             <h2 className="text-2xl font-bold mb-4 text-gray-900">Introduction</h2>
             <p className="mb-4 text-gray-700 leading-relaxed">
-              Adaverc ("we", "our", or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and safeguard information when you use our Google Forms add-on and verification service.
+              Adaverc (&ldquo;we&rdquo;, &ldquo;our&rdquo;, or &ldquo;us&rdquo;) is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and safeguard information when you use our Google Forms add-on and verification service.
             </p>
           </section>
 
@@ -26,7 +26,7 @@ export default function PrivacyPage() {
               <ul className="list-disc pl-6 space-y-2 text-gray-700">
                 <li><strong className="text-gray-900">Cryptographic Hashes Only</strong>: We receive SHA-256 hashes of form responses, not the actual response data</li>
                 <li><strong className="text-gray-900">Form Metadata</strong>: Form ID, Response ID, and timestamp</li>
-                <li><strong className="text-gray-900">No Personal Data</strong>: The actual form responses never leave Google's servers</li>
+                <li><strong className="text-gray-900">No Personal Data</strong>: The actual form responses never leave Google&apos;s servers</li>
               </ul>
             </div>
 
@@ -66,7 +66,7 @@ export default function PrivacyPage() {
             <h2 className="text-2xl font-bold mb-4 text-gray-900">Google API Services</h2>
             <div className="bg-blue-50 rounded-lg p-6">
               <p className="mb-4 text-gray-700">
-                Adaverc's use and transfer of information received from Google APIs adheres to the{' '}
+                Adaverc&apos;s use and transfer of information received from Google APIs adheres to the{' '}
                 <a href="https://developers.google.com/terms/api-services-user-data-policy" 
                    target="_blank" 
                    rel="noopener noreferrer"
@@ -104,7 +104,7 @@ export default function PrivacyPage() {
           <section className="mb-10">
             <h2 className="text-2xl font-bold mb-4 text-gray-900">Changes to This Policy</h2>
             <p className="text-gray-700 bg-yellow-50 rounded-lg p-6">
-              We may update this Privacy Policy from time to time. We will notify users of any material changes by updating the "Last updated" date.
+              We may update this Privacy Policy from time to time. We will notify users of any material changes by updating the &ldquo;Last updated&rdquo; date.
             </p>
           </section>
 

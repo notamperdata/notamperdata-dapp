@@ -57,8 +57,8 @@ export default function SupportPage() {
               <ol className="list-decimal pl-6 space-y-2 text-gray-700">
                 <li>Open your Google Form</li>
                 <li>Click on the puzzle piece icon (Add-ons) in the top right</li>
-                <li>Search for "Adaverc" in the marketplace</li>
-                <li>Click "Install" and accept the permissions</li>
+                <li>Search for &ldquo;Adaverc&rdquo; in the marketplace</li>
+                <li>Click &ldquo;Install&rdquo; and accept the permissions</li>
                 <li>Access the add-on from Add-ons → Adaverc → Open</li>
               </ol>
             </div>
@@ -68,8 +68,8 @@ export default function SupportPage() {
               <p className="mb-3 text-gray-700">Once the add-on is installed:</p>
               <ol className="list-decimal pl-6 space-y-2 text-gray-700">
                 <li>Open the Adaverc sidebar (Add-ons → Adaverc → Open)</li>
-                <li>Click "Enable Automatic Verification"</li>
-                <li>The status will change to "Enabled"</li>
+                <li>Click &ldquo;Enable Automatic Verification&rdquo;</li>
+                <li>The status will change to &ldquo;Enabled&rdquo;</li>
                 <li>All future form submissions will be automatically hashed and stored</li>
               </ol>
             </div>
@@ -79,12 +79,12 @@ export default function SupportPage() {
               <p className="mb-3 text-gray-700">You can verify responses in two ways:</p>
               <ul className="list-disc pl-6 space-y-2 text-gray-700">
                 <li><strong className="text-gray-900">With the hash:</strong> Copy the hash from your records and paste it on the <a href="/verify" className="text-[#0033AD] hover:underline font-medium">verification page</a></li>
-                <li><strong className="text-gray-900">With the content:</strong> Use the "Hash & Verify Content" option to generate a hash from the response data and verify it</li>
+                <li><strong className="text-gray-900">With the content:</strong> Use the &ldquo;Hash &amp; Verify Content&rdquo; option to generate a hash from the response data and verify it</li>
               </ul>
             </div>
 
             <div id="not-working" className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-xl font-bold mb-3 text-gray-900">Why isn't the add-on working?</h3>
+              <h3 className="text-xl font-bold mb-3 text-gray-900">Why isn&apos;t the add-on working?</h3>
               <p className="mb-3 text-gray-700">Common solutions:</p>
               <ul className="list-disc pl-6 space-y-2 text-gray-700">
                 <li>Refresh the form page and try again</li>
@@ -124,7 +124,7 @@ export default function SupportPage() {
           <h2 className="text-3xl font-bold mb-8 text-gray-900">Contact Support</h2>
           <div className="bg-white p-8 rounded-lg shadow-lg border-2 border-[#0033AD]">
             <p className="mb-6 text-gray-700 text-lg">
-              Can't find what you're looking for? We're here to help!
+              Can&apos;t find what you&apos;re looking for? We&apos;re here to help!
             </p>
             <div className="grid md:grid-cols-2 gap-6">
               <div className="bg-gray-50 p-4 rounded-lg">
@@ -142,7 +142,7 @@ export default function SupportPage() {
                   <li>Your form ID (if applicable)</li>
                   <li>Description of the issue</li>
                   <li>Error messages received</li>
-                  <li>Steps you've tried</li>
+                  <li>Steps you&apos;ve tried</li>
                 </ul>
               </div>
             </div>

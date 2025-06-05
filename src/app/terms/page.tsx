@@ -14,7 +14,7 @@ export default function TermsPage() {
           <section className="mb-10">
             <h2 className="text-2xl font-bold mb-4 text-gray-900">1. Acceptance of Terms</h2>
             <p className="text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-6">
-              By installing and using the Adaverc add-on for Google Forms ("Service"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, do not use the Service.
+              By installing and using the Adaverc add-on for Google Forms (&ldquo;Service&rdquo;), you agree to be bound by these Terms of Service (&ldquo;Terms&rdquo;). If you do not agree to these Terms, do not use the Service.
             </p>
           </section>
 
@@ -30,7 +30,7 @@ export default function TermsPage() {
                 <li>Providing tools to verify response integrity</li>
               </ul>
               <p className="mt-4 text-gray-700 font-semibold">
-                The Service processes data within Google's infrastructure and only transmits cryptographic hashes, not actual form data.
+                The Service processes data within Google&apos;s infrastructure and only transmits cryptographic hashes, not actual form data.
               </p>
             </div>
           </section>
@@ -71,7 +71,7 @@ export default function TermsPage() {
             <h2 className="text-2xl font-bold mb-4 text-gray-900">6. Disclaimer of Warranties</h2>
             <div className="bg-red-50 rounded-lg p-6">
               <p className="text-gray-800 font-semibold">
-                THE SERVICE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+                THE SERVICE IS PROVIDED &ldquo;AS IS&rdquo; WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
               </p>
             </div>
           </section>
