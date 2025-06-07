@@ -148,7 +148,7 @@ export default function VerifyPage() {
     
     try {
       console.log("Verifying hash:", hashToVerify);
-      const response = await fetch('http://localhost:3002/api/verify', {
+      const response = await fetch('/api/verify', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
