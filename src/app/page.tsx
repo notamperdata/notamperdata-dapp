@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function Home() {
   return (
@@ -9,7 +10,13 @@ export default function Home() {
             <div className="mx-auto max-w-7xl px-6 lg:px-8">
               <div className="mx-auto max-w-2xl text-center">
                 <div className="flex justify-center mb-6">
-                  <img src="Logo.png" alt="Adaverc Logo" />
+                  <Image 
+                    src="/Logo.png" 
+                    alt="Adaverc Logo" 
+                    width={64}
+                    height={64}
+                    priority
+                  />
                 </div>
                 <h1 className="text-4xl font-bold tracking-tight text-[#202124] sm:text-6xl">
                   Verify Research Data with Blockchain

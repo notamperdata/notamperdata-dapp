@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import Papa from 'papaparse';
@@ -26,7 +26,7 @@ interface FormResponse {
     itemId: string;
     title: string;
     type: string;
-    response: any;
+    response: unknown;
   }>;
 }
 
@@ -37,7 +37,7 @@ interface BatchData {
   responses: FormResponse[];
 }
 
-export default function VerifyPage() {
+function VerifyContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>('hash');
@@ -140,7 +140,7 @@ export default function VerifyPage() {
       console.warn('CSV parsing warnings:', parseResult.errors);
     }
 
-    const rows = parseResult.data as Record<string, any>[];
+    const rows = parseResult.data as Record<string, unknown>[];
     setProcessingStep('Standardizing data format...');
 
     // Convert CSV rows to form response format
@@ -479,5 +479,31 @@ export default function VerifyPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+// Loading fallback for Suspense
+function VerifyLoadingFallback() {
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <main className="flex flex-col items-center justify-center min-h-[70vh]">
+        <div className="w-full max-w-lg">
+          <div className="bg-white shadow-md rounded-lg p-6 border border-gray-200">
+            <div className="flex items-center justify-center py-12">
+              <LoadingSpinner className="h-8 w-8 mr-3" />
+              <span className="text-gray-600">Loading verification page...</span>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+export default function VerifyPage() {
+  return (
+    <Suspense fallback={<VerifyLoadingFallback />}>
+      <VerifyContent />
+    </Suspense>
   );
 }

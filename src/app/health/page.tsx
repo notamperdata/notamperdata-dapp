@@ -64,10 +64,6 @@ export default function HealthPage() {
     }
   };
 
-  const getStatusColor = (status: 'healthy' | 'error') => {
-    return status === 'healthy' ? 'text-green-600' : 'text-red-600';
-  };
-
   const getStatusBadge = (status: 'healthy' | 'error') => {
     return status === 'healthy' 
       ? 'bg-green-100 text-green-800 border-green-200' 
@@ -155,28 +151,6 @@ export default function HealthPage() {
                 </div>
               )}
 
-              {/* API Endpoints */}
-              <div className="border rounded-lg p-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">API Endpoints</h2>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="font-medium">GET /api/health</span>
-                    <span className="text-green-600">✅ Available</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="font-medium">POST /api/storehash</span>
-                    <span className="text-green-600">✅ Available</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="font-medium">POST /api/verify</span>
-                    <span className="text-green-600">✅ Available</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="font-medium">POST /api/createhash</span>
-                    <span className="text-green-600">✅ Available</span>
-                  </div>
-                </div>
-              </div>
 
               {/* Timestamp */}
               <div className="text-center text-sm text-gray-500">
@@ -204,11 +178,11 @@ export default function HealthPage() {
             <div className="space-y-2 text-sm font-mono">
               <div className="flex">
                 <span className="text-blue-600 mr-2">GET</span>
-                <span className="text-gray-800">{window.location.origin}/api/health</span>
+                <span className="text-gray-800">/api/health</span>
               </div>
               <div className="flex">
                 <span className="text-green-600 mr-2">POST</span>
-                <span className="text-gray-800">{window.location.origin}/api/health</span>
+                <span className="text-gray-800">/api/health</span>
               </div>
             </div>
           </div>
