@@ -19,22 +19,17 @@ interface VerificationResult {
 
 type VerificationMethod = 'hash' | 'json' | 'csv';
 
-interface FormResponse {
+interface StandardizedResponse {
   responseId: string;
-  timestamp: string;
   items: Array<{
-    itemId: string;
     title: string;
-    type: string;
-    response: unknown;
+    response: string;
   }>;
 }
 
-interface BatchData {
-  formId: string;
-  formTitle: string;
+interface StandardizedBatchData {
   responseCount: number;
-  responses: FormResponse[];
+  responses: StandardizedResponse[];
 }
 
 function VerifyContent() {
@@ -123,14 +118,14 @@ function VerifyContent() {
     return value;
   }
 
-  // Convert CSV to standardized JSON format matching the add-on
-  const convertCsvToStandardizedJson = (csvData: string): BatchData => {
+  // Convert CSV to standardized format matching the add-on's standardization
+  const convertCsvToStandardizedFormat = (csvData: string): StandardizedBatchData => {
     setProcessingStep('Parsing CSV data...');
     
     // Parse CSV with robust options
     const parseResult = Papa.parse(csvData, {
       header: true,
-      dynamicTyping: true,
+      dynamicTyping: false, // Keep as strings to match add-on
       skipEmptyLines: true,
       delimitersToGuess: [',', '\t', '|', ';'],
       transformHeader: (header: string) => header.trim() // Remove whitespace from headers
@@ -140,34 +135,33 @@ function VerifyContent() {
       console.warn('CSV parsing warnings:', parseResult.errors);
     }
 
-    const rows = parseResult.data as Record<string, unknown>[];
-    setProcessingStep('Standardizing data format...');
+    const rows = parseResult.data as Record<string, string>[];
+    setProcessingStep('Standardizing data format to match add-on...');
 
-    // Convert CSV rows to form response format
-    const responses: FormResponse[] = rows.map((row, index) => {
-      const items = Object.entries(row).map(([question, answer], itemIndex) => ({
-        itemId: `csv-item-${itemIndex}`,
-        title: question,
-        type: 'TEXT', // Default type for CSV data
-        response: answer
+    // Convert CSV rows to standardized form response format (matching add-on logic)
+    const responses: StandardizedResponse[] = rows.map((row, index) => {
+      // Get field names and sort them alphabetically (matches add-on sorting)
+      const fieldNames = Object.keys(row).sort();
+      
+      const items = fieldNames.map((fieldName) => ({
+        title: fieldName,
+        response: row[fieldName] !== null && row[fieldName] !== undefined ? String(row[fieldName]) : ""
       }));
 
       return {
-        responseId: `csv-response-${index}`,
-        timestamp: new Date().toISOString(), // Default timestamp for CSV
+        responseId: `response-${index}`, // Matches add-on pattern
+        // No timestamp - removed to match add-on standardization
         items: items
       };
     });
 
-    // Create batch data structure matching the add-on format
-    const batchData: BatchData = {
-      formId: 'csv-upload-form',
-      formTitle: 'CSV Upload Data',
+    // Create standardized batch data structure matching the add-on
+    const standardizedBatch: StandardizedBatchData = {
       responseCount: responses.length,
       responses: responses
     };
 
-    return batchData;
+    return standardizedBatch;
   };
 
   // Handle file upload
@@ -235,12 +229,13 @@ function VerifyContent() {
           reader.readAsText(csvFile);
         });
         
-        // Convert CSV to standardized format
-        const standardizedData = convertCsvToStandardizedJson(csvContent);
+        // Convert CSV to standardized format (matching add-on standardization)
+        const standardizedData = convertCsvToStandardizedFormat(csvContent);
+        console.log("Standardized data from CSV:", standardizedData);
         
         setProcessingStep('Generating hash from standardized data...');
         hashToVerify = await generateDeterministicHash(standardizedData);
-        console.log("Generated hash from CSV:", hashToVerify);
+        console.log("Generated hash from standardized CSV:", hashToVerify);
         setGeneratedHash(hashToVerify);
       } catch (err) {
         setError('Failed to process CSV file');
@@ -253,7 +248,7 @@ function VerifyContent() {
     }
     
     setLoading(true);
-    setProcessingStep('Verifying hash on blockchain...');
+    setProcessingStep('Verifying hash...');
     
     try {
       console.log("Verifying hash:", hashToVerify);
@@ -334,6 +329,30 @@ function VerifyContent() {
                   CSV
                 </button>
               </div>
+              
+              {/* Information about CSV verification */}
+              {verificationMethod === 'csv' && (
+                <div className="mt-2 p-3 bg-green-50 border-l-4 border-green-400 rounded-md">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-green-800">
+                        CSV Verification Now Supported
+                      </h3>
+                      <div className="mt-2 text-sm text-green-700">
+                        <p>
+                          CSV files are now processed using the same standardization as the Google Forms add-on, 
+                          ensuring hash compatibility between original form responses and CSV exports.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             
             {/* Hash Input */}
@@ -392,7 +411,7 @@ function VerifyContent() {
                   </p>
                 )}
                 <p className="mt-1 text-xs text-gray-500">
-                  Upload CSV file that will be converted to standardized format and hashed.
+                  Upload CSV file exported from your Google Form. Will be standardized to match the add-on&apos;s hash format.
                 </p>
               </div>
             )}
@@ -474,7 +493,7 @@ function VerifyContent() {
         
         <div className="mt-8 text-center text-sm text-gray-500">
           <div className="flex items-center justify-center">
-            <p>Powered by Cardano blockchain technology</p>
+            <p>Powered by Adaverc verification technology</p>
           </div>
         </div>
       </main>
