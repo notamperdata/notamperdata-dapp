@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export default function SupportPage() {
   return (
     <div className="min-h-screen bg-gray-50">
@@ -78,7 +80,7 @@ export default function SupportPage() {
               <h3 className="text-xl font-bold mb-3 text-gray-900">How do I verify a form response?</h3>
               <p className="mb-3 text-gray-700">You can verify responses in two ways:</p>
               <ul className="list-disc pl-6 space-y-2 text-gray-700">
-                <li><strong className="text-gray-900">With the hash:</strong> Copy the hash from your records and paste it on the <a href="/verify" className="text-[#0033AD] hover:underline font-medium">verification page</a></li>
+                <li><strong className="text-gray-900">With the hash:</strong> Copy the hash from your records and paste it on the <Link href="/verify" className="text-[#0033AD] hover:underline font-medium">verification page</Link></li>
                 <li><strong className="text-gray-900">With the content:</strong> Use the &ldquo;Hash &amp; Verify Content&rdquo; option to generate a hash from the response data and verify it</li>
               </ul>
             </div>
@@ -152,18 +154,18 @@ export default function SupportPage() {
         <section>
           <h2 className="text-3xl font-bold mb-8 text-gray-900">Additional Resources</h2>
           <div className="grid gap-4 md:grid-cols-3">
-            <a href="/docs" className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg hover:border-[#0033AD] transition-all group">
+            <Link href="/docs" className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg hover:border-[#0033AD] transition-all group">
               <h3 className="font-bold text-gray-900 mb-2 group-hover:text-[#0033AD]">Documentation</h3>
               <p className="text-gray-600">Technical details and API reference</p>
-            </a>
-            <a href="/privacy" className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg hover:border-[#0033AD] transition-all group">
+            </Link>
+            <Link href="/privacy" className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg hover:border-[#0033AD] transition-all group">
               <h3 className="font-bold text-gray-900 mb-2 group-hover:text-[#0033AD]">Privacy Policy</h3>
               <p className="text-gray-600">How we handle your data</p>
-            </a>
-            <a href="/terms" className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg hover:border-[#0033AD] transition-all group">
+            </Link>
+            <Link href="/terms" className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg hover:border-[#0033AD] transition-all group">
               <h3 className="font-bold text-gray-900 mb-2 group-hover:text-[#0033AD]">Terms of Service</h3>
               <p className="text-gray-600">Usage terms and conditions</p>
-            </a>
+            </Link>
           </div>
         </section>
       </div>
