@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import Papa from 'papaparse';
 
 // Define types for our verification API response
 interface VerificationResult {
@@ -15,41 +17,58 @@ interface VerificationResult {
   storedAt?: string;
 }
 
-type VerificationMethod = 'hash' | 'content';
+type VerificationMethod = 'hash' | 'json' | 'csv';
+
+interface FormResponse {
+  responseId: string;
+  timestamp: string;
+  items: Array<{
+    itemId: string;
+    title: string;
+    type: string;
+    response: any;
+  }>;
+}
+
+interface BatchData {
+  formId: string;
+  formTitle: string;
+  responseCount: number;
+  responses: FormResponse[];
+}
 
 export default function VerifyPage() {
+  const params = useParams();
+  const searchParams = useSearchParams();
   const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>('hash');
   const [hash, setHash] = useState<string>('');
-  const [content, setContent] = useState<string>('');
+  const [jsonContent, setJsonContent] = useState<string>('');
+  const [csvFile, setCsvFile] = useState<File | null>(null);
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [generatedHash, setGeneratedHash] = useState<string | null>(null);
+  const [processingStep, setProcessingStep] = useState<string>('');
 
-  // Function to create a deterministic hash from any input
-  // Exactly matching the server-side implementation
+  // Check for hash in URL on component mount
+  useEffect(() => {
+    // Check if hash is provided in URL path (e.g., /verify/abc123...)
+    if (params?.hash && typeof params.hash === 'string') {
+      setHash(params.hash);
+      setVerificationMethod('hash');
+    } 
+    // Check if hash is provided as search parameter (e.g., /verify?hash=abc123...)
+    else if (searchParams?.get('hash')) {
+      setHash(searchParams.get('hash') || '');
+      setVerificationMethod('hash');
+    }
+  }, [params, searchParams]);
+
+  // Function to create a deterministic hash exactly matching the add-on
   const generateDeterministicHash = async (input: unknown): Promise<string> => {
     try {
-      // First, ensure we're working with the JSON representation
-      // This is crucial for consistent hashing across client and server
-      let jsonData: string;
-      
-      if (typeof input === 'string') {
-        // If the input is already a string, try to parse it as JSON
-        // If it's not valid JSON, just use the string as-is
-        try {
-          const parsed = JSON.parse(input);
-          // Re-stringify with stable ordering
-          jsonData = JSON.stringify(parsed, replacer);
-        } catch (e) {
-          console.log("e", e);
-          // Not valid JSON, use as plain text
-          jsonData = input;
-        }
-      } else {
-        // For objects or other types, stringify with replacer function
-        jsonData = JSON.stringify(input, replacer);
-      }
+      // Ensure consistent JSON representation
+      const jsonData = JSON.stringify(input, replacer);
       
       // Hash the prepared JSON string
       const encoder = new TextEncoder();
@@ -68,6 +87,7 @@ export default function VerifyPage() {
   };
   
   // Replacer function for JSON.stringify that ensures deterministic output
+  // This must match exactly the logic in the Google Apps Script add-on
   function replacer(key: string, value: unknown) {
     // Handle arrays to ensure consistent ordering
     if (Array.isArray(value)) {
@@ -84,8 +104,7 @@ export default function VerifyPage() {
           try {
             return JSON.parse(item);
           } catch (_error) {
-            console.log("_error", _error);
-
+            console.log("Parse error:", _error);
             return item;
           }
         });
@@ -104,8 +123,68 @@ export default function VerifyPage() {
     return value;
   }
 
+  // Convert CSV to standardized JSON format matching the add-on
+  const convertCsvToStandardizedJson = (csvData: string): BatchData => {
+    setProcessingStep('Parsing CSV data...');
+    
+    // Parse CSV with robust options
+    const parseResult = Papa.parse(csvData, {
+      header: true,
+      dynamicTyping: true,
+      skipEmptyLines: true,
+      delimitersToGuess: [',', '\t', '|', ';'],
+      transformHeader: (header: string) => header.trim() // Remove whitespace from headers
+    });
+
+    if (parseResult.errors.length > 0) {
+      console.warn('CSV parsing warnings:', parseResult.errors);
+    }
+
+    const rows = parseResult.data as Record<string, any>[];
+    setProcessingStep('Standardizing data format...');
+
+    // Convert CSV rows to form response format
+    const responses: FormResponse[] = rows.map((row, index) => {
+      const items = Object.entries(row).map(([question, answer], itemIndex) => ({
+        itemId: `csv-item-${itemIndex}`,
+        title: question,
+        type: 'TEXT', // Default type for CSV data
+        response: answer
+      }));
+
+      return {
+        responseId: `csv-response-${index}`,
+        timestamp: new Date().toISOString(), // Default timestamp for CSV
+        items: items
+      };
+    });
+
+    // Create batch data structure matching the add-on format
+    const batchData: BatchData = {
+      formId: 'csv-upload-form',
+      formTitle: 'CSV Upload Data',
+      responseCount: responses.length,
+      responses: responses
+    };
+
+    return batchData;
+  };
+
+  // Handle file upload
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type === 'text/csv') {
+      setCsvFile(file);
+    } else {
+      setError('Please select a valid CSV file');
+    }
+  };
+
   const handleVerify = async () => {
     let hashToVerify: string;
+    setError(null);
+    setGeneratedHash(null);
+    setProcessingStep('');
     
     if (verificationMethod === 'hash') {
       if (!hash) {
@@ -113,38 +192,68 @@ export default function VerifyPage() {
         return;
       }
       hashToVerify = hash;
-    } else {
-      if (!content) {
-        setError('Please enter content to hash and verify');
+    } 
+    else if (verificationMethod === 'json') {
+      if (!jsonContent) {
+        setError('Please enter JSON content to hash and verify');
         return;
       }
       
       try {
-        // Parse content accordingly
+        setProcessingStep('Parsing JSON...');
         let contentValue: unknown;
         try {
-          contentValue = JSON.parse(content);
+          contentValue = JSON.parse(jsonContent);
         } catch (_e) {
-          console.log("", _e);
-
+          console.log("JSON parse error:", _e);
           // Not valid JSON, use as plain text
-          contentValue = content;
+          contentValue = jsonContent;
         }
         
-        // Generate hash from content using our deterministic algorithm
+        setProcessingStep('Generating hash...');
         hashToVerify = await generateDeterministicHash(contentValue);
-        console.log("Generated hash from content:", hashToVerify);
-        console.log("Original content:", content);
+        console.log("Generated hash from JSON:", hashToVerify);
         setGeneratedHash(hashToVerify);
       } catch (err) {
-        setError('Failed to generate hash from content');
-        console.log(err);
+        setError('Failed to generate hash from JSON content');
+        console.error(err);
         return;
       }
     }
+    else if (verificationMethod === 'csv') {
+      if (!csvFile) {
+        setError('Please select a CSV file to process');
+        return;
+      }
+      
+      try {
+        setProcessingStep('Reading CSV file...');
+        const csvContent = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.onerror = reject;
+          reader.readAsText(csvFile);
+        });
+        
+        // Convert CSV to standardized format
+        const standardizedData = convertCsvToStandardizedJson(csvContent);
+        
+        setProcessingStep('Generating hash from standardized data...');
+        hashToVerify = await generateDeterministicHash(standardizedData);
+        console.log("Generated hash from CSV:", hashToVerify);
+        setGeneratedHash(hashToVerify);
+      } catch (err) {
+        setError('Failed to process CSV file');
+        console.error(err);
+        return;
+      }
+    } else {
+      setError('Invalid verification method');
+      return;
+    }
     
     setLoading(true);
-    setError(null);
+    setProcessingStep('Verifying hash on blockchain...');
     
     try {
       console.log("Verifying hash:", hashToVerify);
@@ -173,6 +282,7 @@ export default function VerifyPage() {
       setResult(null);
     } finally {
       setLoading(false);
+      setProcessingStep('');
     }
   };
 
@@ -186,8 +296,8 @@ export default function VerifyPage() {
         <div className="w-full max-w-lg">
           <div className="bg-white shadow-md rounded-lg p-6 border border-gray-200">
             <div className="border-l-4 border-[#4285F4] pl-3 mb-6">
-              <h2 className="text-xl font-semibold text-[#202124]">Verify Dataset </h2>
-              <p className="text-sm text-gray-500">Check research data validity&apos;s using blockchain</p>
+              <h2 className="text-xl font-semibold text-[#202124]">Verify Dataset</h2>
+              <p className="text-sm text-gray-500">Check research data validity using blockchain</p>
             </div>
             
             {/* Verification Method Selector */}
@@ -195,23 +305,33 @@ export default function VerifyPage() {
               <div className="flex border border-gray-300 rounded-md overflow-hidden">
                 <button
                   onClick={() => setVerificationMethod('hash')}
-                  className={`flex-1 py-2 px-4 text-sm font-medium ${
+                  className={`flex-1 py-2 px-3 text-sm font-medium ${
                     verificationMethod === 'hash'
                       ? 'bg-[#4285F4] text-white'
                       : 'bg-white text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  Verify with Hash
+                  Hash
                 </button>
                 <button
-                  onClick={() => setVerificationMethod('content')}
-                  className={`flex-1 py-2 px-4 text-sm font-medium ${
-                    verificationMethod === 'content'
+                  onClick={() => setVerificationMethod('json')}
+                  className={`flex-1 py-2 px-3 text-sm font-medium ${
+                    verificationMethod === 'json'
                       ? 'bg-[#4285F4] text-white'
                       : 'bg-white text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  Hash & Verify Content
+                  JSON
+                </button>
+                <button
+                  onClick={() => setVerificationMethod('csv')}
+                  className={`flex-1 py-2 px-3 text-sm font-medium ${
+                    verificationMethod === 'csv'
+                      ? 'bg-[#4285F4] text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  CSV
                 </button>
               </div>
             </div>
@@ -233,22 +353,56 @@ export default function VerifyPage() {
               </div>
             )}
             
-            {/* Content Input */}
-            {verificationMethod === 'content' && (
+            {/* JSON Input */}
+            {verificationMethod === 'json' && (
               <div className="mb-4">
-                <label htmlFor="content" className="block text-sm font-medium text-gray-700 mb-1">
-                  Response Content:
+                <label htmlFor="json-content" className="block text-sm font-medium text-gray-700 mb-1">
+                  JSON Content:
                 </label>
                 <textarea
-                  id="content"
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  placeholder="Enter the content to hash (JSON or text)"
+                  id="json-content"
+                  value={jsonContent}
+                  onChange={(e) => setJsonContent(e.target.value)}
+                  placeholder="Enter JSON data or plain text"
                   rows={5}
                   className="w-full text-black px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#4285F4] focus:border-[#4285F4]"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Note: Enter either valid JSON or plain text.
+                  Enter JSON data that will be standardized and hashed.
+                </p>
+              </div>
+            )}
+
+            {/* CSV Upload */}
+            {verificationMethod === 'csv' && (
+              <div className="mb-4">
+                <label htmlFor="csv-file" className="block text-sm font-medium text-gray-700 mb-1">
+                  CSV File:
+                </label>
+                <input
+                  type="file"
+                  id="csv-file"
+                  accept=".csv"
+                  onChange={handleFileUpload}
+                  className="w-full text-black px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#4285F4] focus:border-[#4285F4]"
+                />
+                {csvFile && (
+                  <p className="mt-1 text-xs text-green-600">
+                    Selected: {csvFile.name} ({(csvFile.size / 1024).toFixed(1)} KB)
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  Upload CSV file that will be converted to standardized format and hashed.
+                </p>
+              </div>
+            )}
+            
+            {/* Processing Step Display */}
+            {processingStep && (
+              <div className="mb-4 p-3 bg-blue-50 border-l-4 border-[#4285F4] rounded-md">
+                <p className="text-sm text-blue-700">
+                  <LoadingSpinner className="inline mr-2 h-3 w-3" />
+                  {processingStep}
                 </p>
               </div>
             )}
@@ -269,8 +423,8 @@ export default function VerifyPage() {
               )}
             </button>
             
-            {/* Show Generated Hash (Content Mode) */}
-            {verificationMethod === 'content' && generatedHash && (
+            {/* Show Generated Hash */}
+            {generatedHash && (
               <div className="mt-4 p-3 bg-[#e8f0fe] border-l-4 border-[#4285F4] rounded-md">
                 <h4 className="text-sm font-medium text-gray-700">Generated Hash:</h4>
                 <p className="mt-1 text-xs font-mono break-all text-gray-600">{generatedHash}</p>
@@ -320,7 +474,7 @@ export default function VerifyPage() {
         
         <div className="mt-8 text-center text-sm text-gray-500">
           <div className="flex items-center justify-center">
-                   <p>Powered by Cardano blockchain technology</p>
+            <p>Powered by Cardano blockchain technology</p>
           </div>
         </div>
       </main>
