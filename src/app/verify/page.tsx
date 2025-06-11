@@ -170,6 +170,7 @@ function VerifyContent() {
 
   /**
    * Converts CSV data to standardized format matching the add-on's structure
+   * Excludes timestamp fields to match add-on standardization
    */
   const convertCsvToStandardizedFormat = (csvData: CsvRow[]): StandardizedBatchData => {
     console.log("=== CSV STANDARDIZATION ===");
@@ -178,9 +179,18 @@ function VerifyContent() {
     const responses: StandardizedResponse[] = csvData.map((row, index) => {
       console.log(`Processing CSV row ${index}`);
       
-      // Get field names and sort them alphabetically (matches add-on sorting)
-      const fieldNames = Object.keys(row).sort();
-      console.log("Sorted field names:", fieldNames);
+      // Get field names, exclude timestamp fields, and sort alphabetically (matches add-on sorting)
+      const fieldNames = Object.keys(row)
+        .filter(fieldName => {
+          // Exclude timestamp fields to match add-on standardization
+          const lowerField = fieldName.toLowerCase();
+          return !lowerField.includes('timestamp') && 
+                 !lowerField.includes('time') &&
+                 !lowerField.includes('date');
+        })
+        .sort();
+      
+      console.log("Sorted field names (excluding timestamps):", fieldNames);
       
       const items = fieldNames.map((fieldName) => {
         const standardizedItem = {
@@ -193,6 +203,7 @@ function VerifyContent() {
 
       return {
         responseId: `response-${index}`, // Matches add-on pattern
+        // No timestamp field - removed for consistency with add-on
         items: items
       };
     });
@@ -203,7 +214,7 @@ function VerifyContent() {
       responses: responses
     };
     
-    console.log("\n=== CSV STANDARDIZED OUTPUT ===");
+    console.log("\n=== CSV STANDARDIZED OUTPUT (excluding timestamps) ===");
     console.log(JSON.stringify(standardizedBatch, null, 2));
     
     return standardizedBatch;
@@ -392,12 +403,13 @@ function VerifyContent() {
                     </div>
                     <div className="ml-3">
                       <h3 className="text-sm font-medium text-green-800">
-                        CSV Verification Now Supported
+                        CSV Verification (Timestamp-Independent)
                       </h3>
                       <div className="mt-2 text-sm text-green-700">
                         <p>
-                          CSV files are processed using the same standardization as the Google Forms add-on, 
-                          ensuring hash compatibility between original form responses and CSV exports.
+                          CSV files are processed using the same standardization as the Google Forms add-on. 
+                          Timestamp fields are automatically excluded to ensure hash compatibility between 
+                          original form responses and CSV exports.
                         </p>
                       </div>
                     </div>
@@ -462,7 +474,7 @@ function VerifyContent() {
                   </p>
                 )}
                 <p className="mt-1 text-xs text-gray-500">
-                  Upload CSV file exported from your Google Form. Will be standardized to match the add-on&apos;s hash format.
+                  Upload CSV file exported from your Google Form. Timestamp fields will be automatically excluded to match the add-on&apos;s hash format.
                 </p>
               </div>
             )}
