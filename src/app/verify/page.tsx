@@ -3,7 +3,6 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import Papa from 'papaparse';
 
 // Define types for our verification API response
 interface VerificationResult {
@@ -19,12 +18,18 @@ interface VerificationResult {
 
 type VerificationMethod = 'hash' | 'json' | 'csv';
 
+interface CsvRow {
+  [key: string]: string;
+}
+
+interface StandardizedItem {
+  title: string;
+  response: string;
+}
+
 interface StandardizedResponse {
   responseId: string;
-  items: Array<{
-    title: string;
-    response: string;
-  }>;
+  items: StandardizedItem[];
 }
 
 interface StandardizedBatchData {
@@ -59,98 +64,135 @@ function VerifyContent() {
     }
   }, [params, searchParams]);
 
-  // Function to create a deterministic hash exactly matching the add-on
-  const generateDeterministicHash = async (input: unknown): Promise<string> => {
-    try {
-      // Ensure consistent JSON representation
-      const jsonData = JSON.stringify(input, replacer);
-      
-      // Hash the prepared JSON string
-      const encoder = new TextEncoder();
-      const data = encoder.encode(jsonData);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-      
-      // Convert the hash to a hex string
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      
-      return hashHex;
-    } catch (err) {
-      console.error('Error generating hash:', err);
-      throw new Error('Failed to generate hash');
-    }
+  /**
+   * Creates SHA-256 hash from string input
+   */
+  const createSha256Hash = async (input: string): Promise<string> => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(input);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    
+    // Convert the hash to a hex string
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    return hashHex;
   };
-  
-  // Replacer function for JSON.stringify that ensures deterministic output
-  // This must match exactly the logic in the Google Apps Script add-on
-  function replacer(key: string, value: unknown) {
-    // Handle arrays to ensure consistent ordering
-    if (Array.isArray(value)) {
-      // Sort simple arrays by their string representation
-      if (value.every(item => typeof item !== 'object' || item === null)) {
-        return [...value].sort();
+
+  /**
+   * Creates deterministic hash matching the add-on logic
+   */
+  const createDeterministicHash = async (data: unknown): Promise<string> => {
+    console.log("\n=== HASHING ===");
+    
+    // Replacer function for JSON.stringify
+    const replacer = (key: string, value: unknown): unknown => {
+      // Handle arrays to ensure consistent ordering
+      if (Array.isArray(value)) {
+        // Sort simple arrays by their string representation
+        if (value.every(item => typeof item !== 'object' || item === null)) {
+          return [...value].sort();
+        }
+        
+        // For arrays of objects, sort by stringifying their contents first
+        return value
+          .map(item => JSON.stringify(item, replacer)) // Use the same replacer function recursively
+          .sort()
+          .map(item => {
+            try {
+              return JSON.parse(item);
+            } catch (e) {
+              console.log("Parse error in hashing:", e);
+              return item;
+            }
+          });
       }
       
-      // For arrays of objects, sort by stringifying their contents
-      return value
-        .map(item => JSON.stringify(item, replacer))
-        .sort()
-        .map(item => {
-          try {
-            return JSON.parse(item);
-          } catch (_error) {
-            console.log("Parse error:", _error);
-            return item;
-          }
-        });
-    }
-    
-    // Handle objects to ensure consistent key ordering
-    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-      return Object.keys(value)
-        .sort()
-        .reduce((result: Record<string, unknown>, key) => {
-          result[key] = (value as Record<string, unknown>)[key];
-          return result;
+      // Handle objects to ensure consistent key ordering
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        return Object.keys(value as Record<string, unknown>).sort().reduce((obj: Record<string, unknown>, k) => {
+          obj[k] = (value as Record<string, unknown>)[k];
+          return obj;
         }, {});
+      }
+      
+      return value;
+    };
+    
+    // Convert to string in a deterministic way (stable ordering of keys)
+    const jsonString = JSON.stringify(data, replacer);
+    
+    console.log("JSON string for hashing:", jsonString.substring(0, 200) + "...");
+    
+    // Use SHA-256 hashing
+    const hash = await createSha256Hash(jsonString);
+    
+    console.log("Generated hash:", hash);
+    return hash;
+  };
+
+  /**
+   * Parse CSV string to objects (simple approach matching your implementation)
+   */
+  const parseCsv = (csvContent: string): CsvRow[] => {
+    console.log("=== PARSING CSV ===");
+    
+    const lines = csvContent.trim().split('\n');
+    if (lines.length < 2) {
+      throw new Error('CSV must have at least header and one data row');
     }
     
-    return value;
-  }
-
-  // Convert CSV to standardized format matching the add-on's standardization
-  const convertCsvToStandardizedFormat = (csvData: string): StandardizedBatchData => {
-    setProcessingStep('Parsing CSV data...');
+    // Parse headers
+    const headers = lines[0].split(',').map(header => 
+      header.replace(/^"(.*)"$/, '$1').trim() // Remove quotes and trim
+    );
     
-    // Parse CSV with robust options
-    const parseResult = Papa.parse(csvData, {
-      header: true,
-      dynamicTyping: false, // Keep as strings to match add-on
-      skipEmptyLines: true,
-      delimitersToGuess: [',', '\t', '|', ';'],
-      transformHeader: (header: string) => header.trim() // Remove whitespace from headers
-    });
-
-    if (parseResult.errors.length > 0) {
-      console.warn('CSV parsing warnings:', parseResult.errors);
+    console.log("Headers:", headers);
+    
+    // Parse data rows
+    const rows: CsvRow[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(value => 
+        value.replace(/^"(.*)"$/, '$1') // Remove quotes but don't trim values
+      );
+      
+      const row: CsvRow = {};
+      headers.forEach((header, index) => {
+        row[header] = values[index] || '';
+      });
+      
+      rows.push(row);
+      console.log(`Row ${i}:`, row);
     }
+    
+    return rows;
+  };
 
-    const rows = parseResult.data as Record<string, string>[];
-    setProcessingStep('Standardizing data format to match add-on...');
-
+  /**
+   * Converts CSV data to standardized format matching the add-on's structure
+   */
+  const convertCsvToStandardizedFormat = (csvData: CsvRow[]): StandardizedBatchData => {
+    console.log("=== CSV STANDARDIZATION ===");
+    
     // Convert CSV rows to standardized form response format (matching add-on logic)
-    const responses: StandardizedResponse[] = rows.map((row, index) => {
+    const responses: StandardizedResponse[] = csvData.map((row, index) => {
+      console.log(`Processing CSV row ${index}`);
+      
       // Get field names and sort them alphabetically (matches add-on sorting)
       const fieldNames = Object.keys(row).sort();
+      console.log("Sorted field names:", fieldNames);
       
-      const items = fieldNames.map((fieldName) => ({
-        title: fieldName,
-        response: row[fieldName] !== null && row[fieldName] !== undefined ? String(row[fieldName]) : ""
-      }));
+      const items = fieldNames.map((fieldName) => {
+        const standardizedItem = {
+          title: fieldName,
+          response: row[fieldName] !== null && row[fieldName] !== undefined ? String(row[fieldName]) : ""
+        };
+        console.log(`  Item: ${fieldName} -> ${standardizedItem.response}`);
+        return standardizedItem;
+      });
 
       return {
         responseId: `response-${index}`, // Matches add-on pattern
-        // No timestamp - removed to match add-on standardization
         items: items
       };
     });
@@ -160,7 +202,10 @@ function VerifyContent() {
       responseCount: responses.length,
       responses: responses
     };
-
+    
+    console.log("\n=== CSV STANDARDIZED OUTPUT ===");
+    console.log(JSON.stringify(standardizedBatch, null, 2));
+    
     return standardizedBatch;
   };
 
@@ -205,7 +250,7 @@ function VerifyContent() {
         }
         
         setProcessingStep('Generating hash...');
-        hashToVerify = await generateDeterministicHash(contentValue);
+        hashToVerify = await createDeterministicHash(contentValue);
         console.log("Generated hash from JSON:", hashToVerify);
         setGeneratedHash(hashToVerify);
       } catch (err) {
@@ -229,16 +274,22 @@ function VerifyContent() {
           reader.readAsText(csvFile);
         });
         
-        // Convert CSV to standardized format (matching add-on standardization)
-        const standardizedData = convertCsvToStandardizedFormat(csvContent);
-        console.log("Standardized data from CSV:", standardizedData);
+        setProcessingStep('Parsing CSV data...');
+        console.log("📊 TESTING CSV STANDARDIZATION");
+        
+        const csvData = parseCsv(csvContent);
+        
+        setProcessingStep('Standardizing data format to match add-on...');
+        const standardized = convertCsvToStandardizedFormat(csvData);
+        
+        console.log("Standardized data from CSV:", standardized);
         
         setProcessingStep('Generating hash from standardized data...');
-        hashToVerify = await generateDeterministicHash(standardizedData);
+        hashToVerify = await createDeterministicHash(standardized);
         console.log("Generated hash from standardized CSV:", hashToVerify);
         setGeneratedHash(hashToVerify);
       } catch (err) {
-        setError('Failed to process CSV file');
+        setError('Failed to process CSV file: ' + (err instanceof Error ? err.message : 'Unknown error'));
         console.error(err);
         return;
       }
@@ -345,7 +396,7 @@ function VerifyContent() {
                       </h3>
                       <div className="mt-2 text-sm text-green-700">
                         <p>
-                          CSV files are now processed using the same standardization as the Google Forms add-on, 
+                          CSV files are processed using the same standardization as the Google Forms add-on, 
                           ensuring hash compatibility between original form responses and CSV exports.
                         </p>
                       </div>
