@@ -12,11 +12,15 @@
     "@lucid-evolution/core-types": "^0.1.22",
     "@lucid-evolution/lucid": "^0.4.29",
     "@lucid-evolution/utils": "^0.1.66",
+    "buffer": "^6.0.3",
+    "crypto-browserify": "^3.12.1",
     "mongoose": "^8.12.1",
     "next": "15.2.2",
     "papaparse": "^5.5.3",
+    "process": "^0.11.10",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "stream-browserify": "^3.0.0",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
@@ -26,6 +30,7 @@
     "@types/papaparse": "^5.3.16",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/webpack": "^5.28.5",
     "eslint": "^9",
     "eslint-config-next": "15.2.2",
     "tailwindcss": "^4",

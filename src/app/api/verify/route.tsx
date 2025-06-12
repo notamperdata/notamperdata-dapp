@@ -82,14 +82,34 @@ async function verifyHashOnBlockchain(hash: string): Promise<VerificationResult>
     
     console.log(`📄 Found ${transactions.length} transactions with label 8434`);
     
+    // Debug: Log the first transaction structure to see the actual format
+    if (transactions.length > 0) {
+      console.log('🔍 First transaction metadata structure:', JSON.stringify(transactions[0], null, 2));
+    }
+    
     // Search for matching hash in transaction metadata
+    // The metadata is stored directly under json_metadata (not under a nested 8434 key)
     const matchingTx = transactions.find(tx => {
-      const adavercMetadata = tx.json_metadata['8434'];
-      return adavercMetadata && adavercMetadata.hash === hash;
+      // Check if the transaction has json_metadata
+      if (!tx.json_metadata) {
+        console.log('⚠️ Transaction missing json_metadata:', tx.tx_hash);
+        return false;
+      }
+      
+      const adavercMetadata = tx.json_metadata;
+      console.log(`🔍 Checking transaction ${tx.tx_hash} metadata:`, adavercMetadata);
+      
+      // Check if the hash matches
+      const hashMatches = adavercMetadata && adavercMetadata.hash === hash;
+      console.log(`🔍 Hash comparison: "${adavercMetadata?.hash}" === "${hash}" = ${hashMatches}`);
+      
+      return hashMatches;
     });
     
     if (!matchingTx) {
       console.log('❌ Hash not found in blockchain metadata');
+      console.log('🔍 Searched hash:', hash);
+      console.log('🔍 Available hashes:', transactions.map(tx => tx.json_metadata?.hash).filter(Boolean));
       return {
         verified: false,
         message: 'Hash not found in blockchain records',
@@ -100,7 +120,7 @@ async function verifyHashOnBlockchain(hash: string): Promise<VerificationResult>
     console.log('✅ Hash verified on blockchain!');
     console.log('🔗 Transaction hash:', matchingTx.tx_hash);
     
-    const adavercMetadata = matchingTx.json_metadata['8434'];
+    const adavercMetadata = matchingTx.json_metadata;
     
     // Get additional transaction details for proof
     let blockHeight: number | undefined;
@@ -140,7 +160,13 @@ async function verifyHashOnBlockchain(hash: string): Promise<VerificationResult>
       verified: true,
       message: 'Hash successfully verified on blockchain',
       transactionHash: matchingTx.tx_hash,
-      metadata: adavercMetadata,
+      metadata: {
+        hash: adavercMetadata.hash,
+        form_id: adavercMetadata.form_id,
+        response_id: adavercMetadata.response_id,
+        timestamp: adavercMetadata.timestamp,
+        version: adavercMetadata.version
+      },
       network: CARDANO_NETWORK,
       blockchainProof: {
         label: 8434,

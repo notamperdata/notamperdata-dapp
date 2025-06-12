@@ -1,112 +1,96 @@
 # Adaverc API Testing
-# This file contains requests for testing the Adaverc API endpoints with REST Client extension.
-# Use "Send Request" feature to execute each request.
 
 ###########################################
-# 1. CREATE HASH (Utility for development)
+# 1. HASH STORAGE (Smart Contract)
 ###########################################
 
-### Create hash from JSON data
-# This endpoint creates a hash from structured data using the same algorithm as the add-on
-POST http://localhost:3002/api/createhash
-Content-Type: application/json
-
-{
-  "data": {
-    "responseId": "test-response-123",
-    "timestamp": "2025-04-09T15:32:10Z",
-    "items": [
-      {
-        "itemId": "item-1",
-        "title": "What is your name?",
-        "type": "TEXT",
-        "response": "John Doe"
-      },
-      {
-        "itemId": "item-2",
-        "title": "Select your favorite colors",
-        "type": "CHECKBOX",
-        "response": ["Blue", "Green", "Red"]
-      }
-    ]
-  }
-}
-
-### Create hash from plain text
-# Useful for quick testing with simple text input
-POST http://localhost:3002/api/createhash
-Content-Type: application/json
-
-{
-  "plainText": "This is a test response that needs to be hashed"
-}
-
-### Create hash using GET request (browser-friendly)
-# Use this for quick testing directly in a browser
-GET http://localhost:3002/api/createhash?text=Simple test text
-
-###########################################
-# 2. STORE HASH (Form submission endpoint)
-###########################################
-
-### Store a hash in the database
-# This endpoint is called by the Google Forms add-on when a form is submitted
-POST http://localhost:3002/api/storehash
+### Store a hash on blockchain with metadata
+POST http://localhost:3000/api/storehash
 Content-Type: application/json
 
 {
   "hash": "ebc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b",
   "metadata": {
-    "formId": "1FAIpQLSeQmYypY1CdS7-jGbsLdJW8pF6h3R7GlMjLH9",
-    "responseId": "2_ABaOnud_Wj-JNRC-eQbKaXV4KnFIBwHWCyeL9lz21Dqv9sjH3KT3Ss",
-    "timestamp": "2025-03-15T14:30:45Z"
+    "formId": "1FAIpQLSe_test_form_id",
+    "responseId": "test_response_123",
+    "timestamp": 1703250000000,
+    "version": "1.0",
+    "formTitle": "Research Data Collection Form",
+    "responseCount": 42
   }
 }
 
-### Store a hash with dynamically generated values
-# Use this after creating a hash with the createhash endpoint
-POST http://localhost:3002/api/storehash
+### Store another test hash
+POST http://localhost:3000/api/storehash
 Content-Type: application/json
 
 {
-   "hash": "ebc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b",
+  "hash": "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456",
   "metadata": {
-    "formId": "template-form-id",
-    "responseId": "test-1744184226739",
-    "timestamp": "2025-04-09T07:37:06.739Z"
+    "formId": "1FAIpQLSe_sample_form_456",
+    "responseId": "2_ABaOnucF8GhI9jKlMnOpQrSt",
+    "timestamp": 1703260000000,
+    "version": "1.0",
+    "formTitle": "User Feedback Survey",
+    "responseCount": 128
   }
 }
 
 ###########################################
-# 3. VERIFY HASH (Verification endpoint)
+# 2. HASH VERIFICATION (Blockchain Query)
 ###########################################
 
-### Verify a known hash
-# This endpoint checks if a hash exists in the database
-POST http://localhost:3002/api/verify
+### Verify existing hash (POST method)
+POST http://localhost:3000/api/verify
 Content-Type: application/json
 
 {
-  "hash": "ebc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b"
+  "hash": "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456"
 }
 
-### Verify a dynamically created hash
-# Use this after creating and storing a hash with previous endpoints
-POST http://localhost:3002/api/verify
+### Verify hash using GET method
+GET http://localhost:3000/api/verify?hash=ebc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b
+
+### Verify non-existent hash (should return verified: false)
+POST http://localhost:3000/api/verify
 Content-Type: application/json
 
 {
-  "hash": "PASTE_HASH_FROM_CREATEHASH_RESPONSE"
+  "hash": "0000000000000000000000000000000000000000000000000000000000000000"
 }
 
 ###########################################
-# 4. SYSTEM HEALTH & DIAGNOSTICS
+# 3. ERROR TESTING
+###########################################
+
+### Test invalid hash format
+POST http://localhost:3000/api/storehash
+Content-Type: application/json
+
+{
+  "hash": "invalid_hash",
+  "metadata": {
+    "formId": "test_form",
+    "responseId": "test_response"
+  }
+}
+
+### Test missing metadata
+POST http://localhost:3000/api/storehash
+Content-Type: application/json
+
+{
+  "hash": "ebc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b",
+  "metadata": {
+    "formId": "test_form",
+    "timestamp": 1703270000000,
+    "version": "1.0"
+  }
+}
+
+###########################################
+# 4. SYSTEM HEALTH
 ###########################################
 
 ### Health check endpoint
-# Use this to verify the API server is running properly
-GET http://localhost:3002/api/health
-
-### API Server Information
-# Returns details about the server configuration and environment
-GET http://localhost:3002/api/info
+GET http://localhost:3000/api/health
