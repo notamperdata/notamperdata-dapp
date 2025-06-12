@@ -8,15 +8,24 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 interface VerificationResult {
   verified: boolean;
   message: string;
+  transactionHash?: string;
   metadata?: {
-    formId: string;
-    responseId: string;
-    timestamp: string;
+    hash: string;
+    form_id: string;
+    response_id: string;
+    timestamp: number;
+    version: string;
   };
-  storedAt?: string;
+  network?: string;
+  blockchainProof?: {
+    label: number;
+    txHash: string;
+    blockHeight?: number;
+    confirmations?: number;
+  };
 }
 
-type VerificationMethod = 'hash' | 'json' | 'csv';
+type VerificationMethod = 'hash' | 'csv';
 
 interface CsvRow {
   [key: string]: string;
@@ -42,7 +51,6 @@ function VerifyContent() {
   const searchParams = useSearchParams();
   const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>('hash');
   const [hash, setHash] = useState<string>('');
-  const [jsonContent, setJsonContent] = useState<string>('');
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -203,7 +211,6 @@ function VerifyContent() {
 
       return {
         responseId: `response-${index}`, // Matches add-on pattern
-        // No timestamp field - removed for consistency with add-on
         items: items
       };
     });
@@ -243,33 +250,6 @@ function VerifyContent() {
       }
       hashToVerify = hash;
     } 
-    else if (verificationMethod === 'json') {
-      if (!jsonContent) {
-        setError('Please enter JSON content to hash and verify');
-        return;
-      }
-      
-      try {
-        setProcessingStep('Parsing JSON...');
-        let contentValue: unknown;
-        try {
-          contentValue = JSON.parse(jsonContent);
-        } catch (_e) {
-          console.log("JSON parse error:", _e);
-          // Not valid JSON, use as plain text
-          contentValue = jsonContent;
-        }
-        
-        setProcessingStep('Generating hash...');
-        hashToVerify = await createDeterministicHash(contentValue);
-        console.log("Generated hash from JSON:", hashToVerify);
-        setGeneratedHash(hashToVerify);
-      } catch (err) {
-        setError('Failed to generate hash from JSON content');
-        console.error(err);
-        return;
-      }
-    }
     else if (verificationMethod === 'csv') {
       if (!csvFile) {
         setError('Please select a CSV file to process');
@@ -290,7 +270,7 @@ function VerifyContent() {
         
         const csvData = parseCsv(csvContent);
         
-        setProcessingStep('Standardizing data format to match add-on...');
+        setProcessingStep('Standardizing data format...');
         const standardized = convertCsvToStandardizedFormat(csvData);
         
         console.log("Standardized data from CSV:", standardized);
@@ -310,7 +290,7 @@ function VerifyContent() {
     }
     
     setLoading(true);
-    setProcessingStep('Verifying hash...');
+    setProcessingStep('Verifying hash on blockchain...');
     
     try {
       console.log("Verifying hash:", hashToVerify);
@@ -371,16 +351,6 @@ function VerifyContent() {
                   Hash
                 </button>
                 <button
-                  onClick={() => setVerificationMethod('json')}
-                  className={`flex-1 py-2 px-3 text-sm font-medium ${
-                    verificationMethod === 'json'
-                      ? 'bg-[#4285F4] text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  JSON
-                </button>
-                <button
                   onClick={() => setVerificationMethod('csv')}
                   className={`flex-1 py-2 px-3 text-sm font-medium ${
                     verificationMethod === 'csv'
@@ -391,93 +361,54 @@ function VerifyContent() {
                   CSV
                 </button>
               </div>
-              
-              {/* Information about CSV verification */}
+            </div>
+            
+            {/* Input Area - Fixed height to prevent jumping */}
+            <div className="mb-4 min-h-[120px]">
+              {/* Hash Input */}
+              {verificationMethod === 'hash' && (
+                <div>
+                  <label htmlFor="hash" className="block text-sm font-medium text-gray-700 mb-1">
+                    Response Hash:
+                  </label>
+                  <input
+                    type="text"
+                    id="hash"
+                    value={hash}
+                    onChange={(e) => setHash(e.target.value)}
+                    placeholder="Enter the SHA-256 hash"
+                    className="w-full text-black px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#4285F4] focus:border-[#4285F4]"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Enter the 64-character hash from your verification tool.
+                  </p>
+                </div>
+              )}
+
+              {/* CSV Upload */}
               {verificationMethod === 'csv' && (
-                <div className="mt-2 p-3 bg-green-50 border-l-4 border-green-400 rounded-md">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3">
-                      <h3 className="text-sm font-medium text-green-800">
-                        CSV Verification (Timestamp-Independent)
-                      </h3>
-                      <div className="mt-2 text-sm text-green-700">
-                        <p>
-                          CSV files are processed using the same standardization as the Google Forms add-on. 
-                          Timestamp fields are automatically excluded to ensure hash compatibility between 
-                          original form responses and CSV exports.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                <div>
+                  <label htmlFor="csv-file" className="block text-sm font-medium text-gray-700 mb-1">
+                    CSV File:
+                  </label>
+                  <input
+                    type="file"
+                    id="csv-file"
+                    accept=".csv"
+                    onChange={handleFileUpload}
+                    className="w-full text-black px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#4285F4] focus:border-[#4285F4]"
+                  />
+                  {csvFile && (
+                    <p className="mt-1 text-xs text-green-600">
+                      Selected: {csvFile.name} ({(csvFile.size / 1024).toFixed(1)} KB)
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    Upload CSV file exported from your Google Form.
+                  </p>
                 </div>
               )}
             </div>
-            
-            {/* Hash Input */}
-            {verificationMethod === 'hash' && (
-              <div className="mb-4">
-                <label htmlFor="hash" className="block text-sm font-medium text-gray-700 mb-1">
-                  Response Hash:
-                </label>
-                <input
-                  type="text"
-                  id="hash"
-                  value={hash}
-                  onChange={(e) => setHash(e.target.value)}
-                  placeholder="Enter the SHA-256 hash"
-                  className="w-full text-black px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#4285F4] focus:border-[#4285F4]"
-                />
-              </div>
-            )}
-            
-            {/* JSON Input */}
-            {verificationMethod === 'json' && (
-              <div className="mb-4">
-                <label htmlFor="json-content" className="block text-sm font-medium text-gray-700 mb-1">
-                  JSON Content:
-                </label>
-                <textarea
-                  id="json-content"
-                  value={jsonContent}
-                  onChange={(e) => setJsonContent(e.target.value)}
-                  placeholder="Enter JSON data or plain text"
-                  rows={5}
-                  className="w-full text-black px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#4285F4] focus:border-[#4285F4]"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  Enter JSON data that will be standardized and hashed.
-                </p>
-              </div>
-            )}
-
-            {/* CSV Upload */}
-            {verificationMethod === 'csv' && (
-              <div className="mb-4">
-                <label htmlFor="csv-file" className="block text-sm font-medium text-gray-700 mb-1">
-                  CSV File:
-                </label>
-                <input
-                  type="file"
-                  id="csv-file"
-                  accept=".csv"
-                  onChange={handleFileUpload}
-                  className="w-full text-black px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#4285F4] focus:border-[#4285F4]"
-                />
-                {csvFile && (
-                  <p className="mt-1 text-xs text-green-600">
-                    Selected: {csvFile.name} ({(csvFile.size / 1024).toFixed(1)} KB)
-                  </p>
-                )}
-                <p className="mt-1 text-xs text-gray-500">
-                  Upload CSV file exported from your Google Form. Timestamp fields will be automatically excluded to match the add-on&apos;s hash format.
-                </p>
-              </div>
-            )}
             
             {/* Processing Step Display */}
             {processingStep && (
@@ -532,18 +463,32 @@ function VerifyContent() {
                   <div className="mt-3 pt-3 border-t border-gray-200">
                     <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-2 text-sm">
                       <span className="font-semibold text-gray-600">Form ID:</span>
-                      <span className="text-gray-700">{result.metadata.formId}</span>
+                      <span className="text-gray-700">{result.metadata.form_id}</span>
                       
                       <span className="font-semibold text-gray-600">Response ID:</span>
-                      <span className="text-gray-700">{result.metadata.responseId}</span>
+                      <span className="text-gray-700">{result.metadata.response_id}</span>
                       
                       <span className="font-semibold text-gray-600">Timestamp:</span>
                       <span className="text-gray-700">{new Date(result.metadata.timestamp).toLocaleString()}</span>
                       
-                      {result.storedAt && (
+                      {result.transactionHash && (
                         <>
-                          <span className="font-semibold text-gray-600">Stored:</span>
-                          <span className="text-gray-700">{new Date(result.storedAt).toLocaleString()}</span>
+                          <span className="font-semibold text-gray-600">Transaction:</span>
+                          <span className="text-gray-700 font-mono text-xs break-all">{result.transactionHash}</span>
+                        </>
+                      )}
+                      
+                      {result.network && (
+                        <>
+                          <span className="font-semibold text-gray-600">Network:</span>
+                          <span className="text-gray-700">{result.network}</span>
+                        </>
+                      )}
+                      
+                      {result.blockchainProof?.confirmations && (
+                        <>
+                          <span className="font-semibold text-gray-600">Confirmations:</span>
+                          <span className="text-gray-700">{result.blockchainProof.confirmations}</span>
                         </>
                       )}
                     </div>
