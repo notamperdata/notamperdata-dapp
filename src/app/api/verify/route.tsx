@@ -118,16 +118,18 @@ async function verifyHashOnBlockchain(hash: string): Promise<VerificationResult>
         const txDetails = await txDetailsResponse.json();
         blockHeight = txDetails.block_height;
         
-        // Get current tip to calculate confirmations
-        const tipResponse = await fetch(`${blockfrostUrl}/blocks/latest`, {
-          headers: {
-            'project_id': BLOCKFROST_PROJECT_ID
+        // Get current tip to calculate confirmations - only if blockHeight is defined
+        if (blockHeight !== undefined) {
+          const tipResponse = await fetch(`${blockfrostUrl}/blocks/latest`, {
+            headers: {
+              'project_id': BLOCKFROST_PROJECT_ID
+            }
+          });
+          
+          if (tipResponse.ok) {
+            const tipData = await tipResponse.json();
+            confirmations = tipData.height - blockHeight + 1;
           }
-        });
-        
-        if (tipResponse.ok) {
-          const tipData = await tipResponse.json();
-          confirmations = tipData.height - blockHeight + 1;
         }
       }
     } catch (error) {

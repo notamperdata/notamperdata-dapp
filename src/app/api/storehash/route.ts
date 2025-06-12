@@ -116,26 +116,23 @@ async function storeHashOnBlockchain(hash: string, metadata: any): Promise<strin
     
     // Create transaction metadata according to specification (label 8434)
     const txMetadata = {
-      8434: { // ADAV label as specified
-        hash: hash,
-        form_id: metadata.formId,
-        response_id: metadata.responseId,
-        timestamp: Date.now(),
-        version: "1.0"
-      }
+      hash: hash,
+      form_id: metadata.formId,
+      response_id: metadata.responseId,
+      timestamp: Date.now(),
+      version: "1.0"
     };
     
     console.log('📝 Transaction metadata:', txMetadata);
     
-    // Create transaction to store hash
+    // Create transaction to store hash - Using ToAddress for simplicity and MVP compatibility
     const tx = lucid
       .newTx()
-      .pay.ToContract(
+      .pay.ToAddress(
         CONTRACT_ADDRESS,
-        { inline: Data.void() }, // Empty datum as per contract specification
         { lovelace: BigInt(2000000) } // 2 ADA as specified
       )
-      .addMetadata(8434, txMetadata[8434]); // Add metadata with label 8434
+      .attachMetadata(8434, txMetadata); // Use attachMetadata instead of addMetadata
     
     console.log('⚙️ Building transaction...');
     
