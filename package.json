@@ -9,6 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@lucid-evolution/core-types": "^0.1.22",
+    "@lucid-evolution/lucid": "^0.4.29",
+    "@lucid-evolution/utils": "^0.1.66",
     "mongoose": "^8.12.1",
     "next": "15.2.2",
     "papaparse": "^5.5.3",
