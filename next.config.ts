@@ -2,6 +2,14 @@ import type { NextConfig } from "next";
 import webpack from "webpack";
 
 const nextConfig: NextConfig = {
+  // Explicitly define environment variables for production
+  env: {
+    BLOCKFROST_PROJECT_ID: process.env.BLOCKFROST_PROJECT_ID,
+    PLATFORM_WALLET_MNEMONIC: process.env.PLATFORM_WALLET_MNEMONIC,
+    CONTRACT_ADDRESS: process.env.CONTRACT_ADDRESS,
+    CARDANO_NETWORK: process.env.CARDANO_NETWORK,
+  },
+
   // Enable experimental features for WASM support
   experimental: {
     serverComponentsExternalPackages: [
@@ -54,6 +62,13 @@ const nextConfig: NextConfig = {
       new webpack.ProvidePlugin({
         Buffer: ['buffer', 'Buffer'],
         process: 'process/browser'
+      }),
+      // Explicitly define environment variables in webpack
+      new webpack.DefinePlugin({
+        'process.env.BLOCKFROST_PROJECT_ID': JSON.stringify(process.env.BLOCKFROST_PROJECT_ID),
+        'process.env.PLATFORM_WALLET_MNEMONIC': JSON.stringify(process.env.PLATFORM_WALLET_MNEMONIC),
+        'process.env.CONTRACT_ADDRESS': JSON.stringify(process.env.CONTRACT_ADDRESS),
+        'process.env.CARDANO_NETWORK': JSON.stringify(process.env.CARDANO_NETWORK),
       })
     );
 
