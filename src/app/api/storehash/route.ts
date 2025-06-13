@@ -3,137 +3,62 @@ import { NextRequest, NextResponse } from 'next/server';
 import { 
   Lucid, 
   Blockfrost, 
-  SpendingValidator, 
   LucidEvolution
 } from '@lucid-evolution/lucid';
-import { Network } from '@lucid-evolution/core-types';
-import * as fs from 'fs';
-import * as path from 'path';
+import { 
+  loadContractConfig,
+  networkUrls,
+  getNetworkType,
+  loadAdavercValidator,
+  ADAVERC_CONSTANTS
+} from '@/lib/contract';
 
-// Configuration
-const BLOCKFROST_PROJECT_ID = process.env.BLOCKFROST_PROJECT_ID;
-const PLATFORM_WALLET_MNEMONIC = process.env.PLATFORM_WALLET_MNEMONIC;
-const CARDANO_NETWORK = (process.env.CARDANO_NETWORK as 'Preview' | 'Preprod' | 'Mainnet') || 'Preview';
-const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
-
-// Network configuration
-const networkUrls = {
-  Preview: 'https://cardano-preview.blockfrost.io/api/v0',
-  Preprod: 'https://cardano-preprod.blockfrost.io/api/v0',
-  Mainnet: 'https://cardano-mainnet.blockfrost.io/api/v0'
-};
-
-// Interface for validator structure
-interface ValidatorData {
-  title: string;
-  compiledCode: string;
-  hash: string;
-}
-
-// Interface for plutus.json structure
-interface PlutusJson {
-  validators: ValidatorData[];
-}
-
-// Load validator from plutus.json
-function loadValidator(): { compiledCode: string; hash: string } {
-  try {
-    const plutusJsonPath = path.join(process.cwd(), 'plutus.json');
-    
-    if (!fs.existsSync(plutusJsonPath)) {
-      throw new Error('plutus.json not found in project root. Please copy it from the smart contract project.');
-    }
-    
-    const plutusJson: PlutusJson = JSON.parse(fs.readFileSync(plutusJsonPath, 'utf8'));
-    
-    const spendValidator = plutusJson.validators.find(
-      (v: ValidatorData) => v.title === 'adaverc_registry.adaverc_registry.spend'
-    );
-    
-    if (!spendValidator) {
-      throw new Error('Adaverc registry spend validator not found in plutus.json');
-    }
-    
-    return {
-      compiledCode: spendValidator.compiledCode,
-      hash: spendValidator.hash
-    };
-  } catch (error) {
-    console.error('Error loading validator:', error);
-    throw error;
-  }
-}
-
-// Create validator from compiled code
-function createValidator(compiledCode: string): SpendingValidator {
-  return {
-    type: 'PlutusV2',
-    script: compiledCode
-  };
-}
-
-// Map network string to Network type
-function getNetworkType(networkStr: string): Network {
-  switch (networkStr) {
-    case 'Preview': return 'Preview';
-    case 'Preprod': return 'Preprod';
-    case 'Mainnet': return 'Mainnet';
-    default: throw new Error(`Unsupported network: ${networkStr}`);
-  }
-}
-
-// Initialize Lucid
+// Initialize Lucid using the contract utilities
 async function initLucid(): Promise<LucidEvolution> {
-  if (!BLOCKFROST_PROJECT_ID) {
-    throw new Error('BLOCKFROST_PROJECT_ID environment variable is required');
-  }
+  const config = loadContractConfig();
   
-  if (!PLATFORM_WALLET_MNEMONIC) {
-    throw new Error('PLATFORM_WALLET_MNEMONIC environment variable is required');
-  }
+  console.log('🔧 Environment variables loaded:', {
+    hasBlockfrostId: !!config.blockfrostProjectId,
+    hasWalletMnemonic: !!config.platformWalletMnemonic,
+    hasContractAddress: !!config.contractAddress,
+    network: config.network
+  });
 
-  const network = getNetworkType(CARDANO_NETWORK);
-  const blockfrostUrl = networkUrls[CARDANO_NETWORK];
+  const network = getNetworkType(config.network);
+  const blockfrostUrl = networkUrls[config.network];
 
   const lucid = await Lucid(
-    new Blockfrost(blockfrostUrl, BLOCKFROST_PROJECT_ID),
+    new Blockfrost(blockfrostUrl, config.blockfrostProjectId),
     network
   );
 
   // Select wallet from mnemonic
-  lucid.selectWallet.fromSeed(PLATFORM_WALLET_MNEMONIC);
+  lucid.selectWallet.fromSeed(config.platformWalletMnemonic);
 
   return lucid;
 }
 
-// Interface for metadata structure
-interface FormMetadata {
+// Interface for metadata
+interface StoreMetadata {
   formId: string;
   responseId: string;
-  timestamp?: number;
-  version?: string;
-  formTitle?: string;
-  responseCount?: number;
 }
 
 // Store hash on blockchain with metadata
-async function storeHashOnBlockchain(hash: string, metadata: FormMetadata): Promise<string> {
+async function storeHashOnBlockchain(hash: string, metadata: StoreMetadata): Promise<string> {
   try {
     console.log('🚀 Storing hash on blockchain:', hash);
     
     // Initialize Lucid
     const lucid = await initLucid();
     
-    // Load validator
-    const validator = loadValidator();
-    createValidator(validator.compiledCode); // Create validator but don't need to store it
+    // Load validator using the embedded data (for future use)
+    const validator = loadAdavercValidator();
+    console.log('📜 Validator loaded, hash:', validator.hash);
     
-    // Verify contract address matches
-    if (!CONTRACT_ADDRESS) {
-      throw new Error('CONTRACT_ADDRESS environment variable is required');
-    }
-    
-    console.log('📋 Using contract address:', CONTRACT_ADDRESS);
+    // Get contract address from environment
+    const config = loadContractConfig();
+    console.log('📋 Using contract address:', config.contractAddress);
     
     // Create transaction metadata according to specification (label 8434)
     const txMetadata = {
@@ -146,14 +71,14 @@ async function storeHashOnBlockchain(hash: string, metadata: FormMetadata): Prom
     
     console.log('📝 Transaction metadata:', txMetadata);
     
-    // Create transaction to store hash - Using ToAddress for simplicity and MVP compatibility
+    // Create transaction to store hash
     const tx = lucid
       .newTx()
       .pay.ToAddress(
-        CONTRACT_ADDRESS,
-        { lovelace: BigInt(2000000) } // 2 ADA as specified
+        config.contractAddress,
+        { lovelace: ADAVERC_CONSTANTS.CONTRACT_UTXO_AMOUNT }
       )
-      .attachMetadata(8434, txMetadata); // Use attachMetadata instead of addMetadata
+      .attachMetadata(ADAVERC_CONSTANTS.METADATA_LABEL, txMetadata);
     
     console.log('⚙️ Building transaction...');
     
@@ -178,97 +103,71 @@ async function storeHashOnBlockchain(hash: string, metadata: FormMetadata): Prom
 }
 
 export async function POST(request: NextRequest) {
-  console.log("🔧 STORE HASH - Contract-based endpoint");
-  
   try {
-    const body = await request.json();
-    const { hash, metadata } = body;
+    console.log('🔧 STORE HASH - Contract-based endpoint');
     
-    // Validate required fields
-    if (!hash || !metadata) {
-      console.log('❌ Missing required fields');
+    // Parse and validate request
+    const requestData = await request.json();
+    console.log('✅ Request validation passed');
+
+    const { hash, metadata } = requestData;
+
+    if (!hash) {
+      console.error('❌ Hash missing from request');
       return NextResponse.json(
-        { error: 'Missing required fields: hash and metadata' },
+        { error: 'Hash is required' },
         { status: 400 }
       );
     }
-    
+
+    if (!metadata || !metadata.formId || !metadata.responseId) {
+      console.error('❌ Missing required metadata fields');
+      return NextResponse.json(
+        { error: 'Missing required metadata fields (formId, responseId)' },
+        { status: 400 }
+      );
+    }
+
     // Validate hash format (should be 64-character hex string)
     if (!/^[a-fA-F0-9]{64}$/.test(hash)) {
-      console.log('❌ Invalid hash format');
+      console.error('❌ Invalid hash format');
       return NextResponse.json(
         { error: 'Invalid hash format. Expected 64-character hex string.' },
         { status: 400 }
       );
     }
-    
-    // Validate metadata structure
-    if (!metadata.formId || !metadata.responseId) {
-      console.log('❌ Invalid metadata structure');
-      return NextResponse.json(
-        { error: 'Invalid metadata structure. Required: formId, responseId' },
-        { status: 400 }
-      );
-    }
-    
-    console.log('✅ Request validation passed');
-    console.log('📋 Storing hash:', hash.substring(0, 16) + '...');
-    
+
+    console.log(`📋 Storing hash: ${hash.substring(0, 16)}...`);
+
     // Store hash on blockchain
-    const transactionHash = await storeHashOnBlockchain(hash, metadata);
-    
+    const txHash = await storeHashOnBlockchain(hash, metadata);
+
     // Return success response
     return NextResponse.json({
       success: true,
       message: 'Hash stored successfully on blockchain',
-      transactionHash: transactionHash,
-      network: CARDANO_NETWORK,
+      transactionHash: txHash,
+      network: process.env.CARDANO_NETWORK || 'Preview',
+      contractAddress: process.env.CONTRACT_ADDRESS,
+      timestamp: new Date().toISOString(),
       blockchainProof: {
-        label: 8434,
-        txHash: transactionHash
+        label: ADAVERC_CONSTANTS.METADATA_LABEL,
+        hash: hash,
+        txHash: txHash
       }
     });
-    
+
   } catch (error) {
     console.error('💥 API error:', error);
     
-    // Handle specific error types
-    if (error instanceof Error) {
-      if (error.message?.includes('BLOCKFROST')) {
-        return NextResponse.json(
-          { 
-            error: 'Blockchain connection error. Please check Blockfrost configuration.',
-            details: error.message 
-          },
-          { status: 500 }
-        );
-      }
-      
-      if (error.message?.includes('PLATFORM_WALLET')) {
-        return NextResponse.json(
-          { 
-            error: 'Wallet configuration error. Please check platform wallet setup.',
-            details: error.message 
-          },
-          { status: 500 }
-        );
-      }
-      
-      if (error.message?.includes('CONTRACT_ADDRESS')) {
-        return NextResponse.json(
-          { 
-            error: 'Contract configuration error. Please check contract address.',
-            details: error.message 
-          },
-          { status: 500 }
-        );
-      }
-    }
+    // Enhanced error response
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     
     return NextResponse.json(
       { 
-        error: 'Internal server error while storing hash on blockchain',
-        message: error instanceof Error ? error.message : 'Unknown error'
+        error: 'Failed to store hash on blockchain', 
+        details: errorMessage,
+        timestamp: new Date().toISOString()
       },
       { status: 500 }
     );

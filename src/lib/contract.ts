@@ -6,11 +6,9 @@ import {
   LucidEvolution
 } from '@lucid-evolution/lucid';
 import { Network } from '@lucid-evolution/core-types';
-import * as fs from 'fs';
-import * as path from 'path';
 
-// Embedded plutus.json content - this ensures it's always available
-const EMBEDDED_PLUTUS_DATA = {
+// EMBEDDED PLUTUS DATA - Replace this object with your plutus.json content
+const PLUTUS_DATA = {
   "preamble": {
     "title": "ndigirigijohn/adaverc-sc",
     "description": "Aiken contracts for project 'ndigirigijohn/adaverc-sc'",
@@ -72,11 +70,6 @@ interface ValidatorData {
   hash: string;
 }
 
-// Interface for plutus.json structure
-interface PlutusJson {
-  validators: ValidatorData[];
-}
-
 // Load environment configuration
 export function loadContractConfig(): ContractConfig {
   const config = {
@@ -109,39 +102,16 @@ export const networkUrls = {
   Mainnet: 'https://cardano-mainnet.blockfrost.io/api/v0'
 };
 
-// Load validator from embedded data with fallback to file
+// Load validator from embedded data ONLY - no file system access
 export function loadAdavercValidator(): { compiledCode: string; hash: string } {
-  try {
-    console.log('🔍 Loading Adaverc validator...');
-    
-    // First try to load from embedded data (most reliable)
-    return loadValidatorFromEmbedded();
-    
-  } catch (embeddedError) {
-    const embeddedErrorMessage = embeddedError instanceof Error ? embeddedError.message : String(embeddedError);
-    console.warn('⚠️ Failed to load from embedded data, trying file:', embeddedErrorMessage);
-    
-    // Fallback to file loading
-    try {
-      return loadValidatorFromFile();
-    } catch (fileError) {
-      const fileErrorMessage = fileError instanceof Error ? fileError.message : String(fileError);
-      console.error('❌ Failed to load from both embedded data and file');
-      throw new Error(`Failed to load validator: ${embeddedErrorMessage} | File error: ${fileErrorMessage}`);
-    }
-  }
-}
-
-// Load validator from embedded data (primary method)
-function loadValidatorFromEmbedded(): { compiledCode: string; hash: string } {
-  console.log('📦 Using embedded plutus data');
+  console.log('📦 Loading validator from embedded data');
   
-  const spendValidator = EMBEDDED_PLUTUS_DATA.validators.find(
+  const spendValidator = PLUTUS_DATA.validators.find(
     (v: ValidatorData) => v.title === 'adaverc_registry.adaverc_registry.spend'
   );
   
   if (!spendValidator) {
-    const availableValidators = EMBEDDED_PLUTUS_DATA.validators.map((v: ValidatorData) => v.title).join(', ');
+    const availableValidators = PLUTUS_DATA.validators.map((v: ValidatorData) => v.title).join(', ');
     throw new Error(
       `Adaverc registry spend validator not found in embedded data.\n` +
       `Available validators: ${availableValidators}`
@@ -149,57 +119,12 @@ function loadValidatorFromEmbedded(): { compiledCode: string; hash: string } {
   }
   
   console.log('✅ Validator loaded from embedded data successfully');
+  console.log('🔑 Validator hash:', spendValidator.hash);
+  
   return {
     compiledCode: spendValidator.compiledCode,
     hash: spendValidator.hash
   };
-}
-
-// Load validator from file (fallback method)
-function loadValidatorFromFile(): { compiledCode: string; hash: string } {
-  console.log('📁 Attempting to load from plutus.json file...');
-  
-  const possiblePaths = [
-    path.join(process.cwd(), 'plutus.json'),
-    path.join(__dirname, '..', '..', 'plutus.json'),
-    path.join(__dirname, '..', '..', '..', 'plutus.json'),
-    path.resolve(process.cwd(), 'plutus.json'),
-    path.join(process.cwd(), 'public', 'plutus.json'),
-  ];
-
-  for (const testPath of possiblePaths) {
-    console.log(`🔍 Checking: ${testPath}`);
-    if (fs.existsSync(testPath)) {
-      console.log(`✅ Found plutus.json at: ${testPath}`);
-      
-      try {
-        const plutusJson: PlutusJson = JSON.parse(fs.readFileSync(testPath, 'utf8'));
-        
-        const spendValidator = plutusJson.validators.find(
-          (v: ValidatorData) => v.title === 'adaverc_registry.adaverc_registry.spend'
-        );
-        
-        if (!spendValidator) {
-          const availableValidators = plutusJson.validators.map((v: ValidatorData) => v.title).join(', ');
-          throw new Error(
-            `Adaverc registry spend validator not found in plutus.json.\n` +
-            `Available validators: ${availableValidators}`
-          );
-        }
-        
-        console.log('✅ Validator loaded from file successfully');
-        return {
-          compiledCode: spendValidator.compiledCode,
-          hash: spendValidator.hash
-        };
-      } catch (parseError) {
-        console.error(`❌ Error parsing ${testPath}:`, parseError);
-        continue;
-      }
-    }
-  }
-
-  throw new Error(`plutus.json not found in any of the expected locations: ${possiblePaths.join(', ')}`);
 }
 
 // Create validator from compiled code
