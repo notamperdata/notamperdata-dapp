@@ -14,9 +14,15 @@ const networkUrls = {
 
 interface BlockfrostMetadataResponse {
   tx_hash: string;
-  json_metadata: {
-    [key: string]: any;
-  };
+  json_metadata: BlockfrostMetadataContent;
+}
+
+interface BlockfrostMetadataContent {
+  hash: string;
+  form_id: string;
+  response_id: string;
+  timestamp: number;
+  version: string;
 }
 
 interface VerificationResult {
@@ -39,10 +45,15 @@ interface VerificationResult {
   };
 }
 
-// Verify hash by querying Blockfrost for metadata with label 8434
+interface TransactionDetails {
+  block_height: number;
+  height: number;
+}
+
+// Verify hash on blockchain using Blockfrost metadata queries
 async function verifyHashOnBlockchain(hash: string): Promise<VerificationResult> {
   try {
-    console.log('🔍 Verifying hash on blockchain:', hash);
+    console.log('🔍 Verifying hash on blockchain:', hash.substring(0, 16) + '...');
     
     if (!BLOCKFROST_PROJECT_ID) {
       throw new Error('BLOCKFROST_PROJECT_ID environment variable is required');
@@ -50,69 +61,52 @@ async function verifyHashOnBlockchain(hash: string): Promise<VerificationResult>
     
     const blockfrostUrl = networkUrls[CARDANO_NETWORK];
     
-    // Query Blockfrost for metadata transactions with label 8434 (ADAV label)
+    // Query metadata transactions with label 8434 (Adaverc label)
     const metadataUrl = `${blockfrostUrl}/metadata/txs/labels/8434`;
-    
-    console.log('📡 Querying Blockfrost:', metadataUrl);
+    console.log('🌐 Querying metadata from:', metadataUrl);
     
     const response = await fetch(metadataUrl, {
-      method: 'GET',
       headers: {
-        'project_id': BLOCKFROST_PROJECT_ID,
-        'Content-Type': 'application/json'
+        'project_id': BLOCKFROST_PROJECT_ID
       }
     });
     
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ Blockfrost API error:', response.status, errorText);
-      
-      if (response.status === 404) {
-        return {
-          verified: false,
-          message: 'No transactions found with Adaverc metadata label (8434)',
-          network: CARDANO_NETWORK
-        };
-      }
-      
       throw new Error(`Blockfrost API error: ${response.status} - ${errorText}`);
     }
     
     const transactions: BlockfrostMetadataResponse[] = await response.json();
+    console.log('📊 Found transactions with metadata:', transactions.length);
     
-    console.log(`📄 Found ${transactions.length} transactions with label 8434`);
+    // Log all metadata for debugging
+    console.log('🔍 DEBUG: All transactions metadata:');
+    transactions.forEach((tx, index) => {
+      console.log(`Transaction ${index + 1}:`, {
+        tx_hash: tx.tx_hash,
+        json_metadata: tx.json_metadata
+      });
+      
+      // The metadata is directly in json_metadata when querying by label
+      console.log(`  - Hash in metadata:`, tx.json_metadata.hash);
+    });
     
-    // Debug: Log the first transaction structure to see the actual format
-    if (transactions.length > 0) {
-      console.log('🔍 First transaction metadata structure:', JSON.stringify(transactions[0], null, 2));
-    }
+    console.log('🎯 Looking for hash:', hash);
     
-    // Search for matching hash in transaction metadata
-    // The metadata is stored directly under json_metadata (not under a nested 8434 key)
+    // Find matching transaction by hash
     const matchingTx = transactions.find(tx => {
-      // Check if the transaction has json_metadata
-      if (!tx.json_metadata) {
-        console.log('⚠️ Transaction missing json_metadata:', tx.tx_hash);
-        return false;
-      }
-      
+      // The metadata is directly in json_metadata when querying by label
       const adavercMetadata = tx.json_metadata;
-      console.log(`🔍 Checking transaction ${tx.tx_hash} metadata:`, adavercMetadata);
-      
-      // Check if the hash matches
-      const hashMatches = adavercMetadata && adavercMetadata.hash === hash;
-      console.log(`🔍 Hash comparison: "${adavercMetadata?.hash}" === "${hash}" = ${hashMatches}`);
-      
-      return hashMatches;
+      console.log('🔍 Checking transaction:', tx.tx_hash, 'metadata:', adavercMetadata);
+      return adavercMetadata && adavercMetadata.hash === hash;
     });
     
     if (!matchingTx) {
-      console.log('❌ Hash not found in blockchain metadata');
-      console.log('🔍 Searched hash:', hash);
-      console.log('🔍 Available hashes:', transactions.map(tx => tx.json_metadata?.hash).filter(Boolean));
+      console.log('❌ Hash not found on blockchain');
       return {
         verified: false,
-        message: 'Hash not found in blockchain records',
+        message: 'Hash not found on blockchain',
         network: CARDANO_NETWORK
       };
     }
@@ -135,7 +129,7 @@ async function verifyHashOnBlockchain(hash: string): Promise<VerificationResult>
       });
       
       if (txDetailsResponse.ok) {
-        const txDetails = await txDetailsResponse.json();
+        const txDetails: TransactionDetails = await txDetailsResponse.json();
         blockHeight = txDetails.block_height;
         
         // Get current tip to calculate confirmations - only if blockHeight is defined
@@ -147,7 +141,7 @@ async function verifyHashOnBlockchain(hash: string): Promise<VerificationResult>
           });
           
           if (tipResponse.ok) {
-            const tipData = await tipResponse.json();
+            const tipData: TransactionDetails = await tipResponse.json();
             confirmations = tipData.height - blockHeight + 1;
           }
         }
@@ -176,7 +170,7 @@ async function verifyHashOnBlockchain(hash: string): Promise<VerificationResult>
       }
     };
     
-  } catch (error: any) {
+  } catch (error) {
     console.error('💥 Error verifying hash on blockchain:', error);
     throw error;
   }
@@ -215,37 +209,39 @@ export async function POST(request: NextRequest) {
     // Return verification result
     return NextResponse.json(verificationResult);
     
-  } catch (error: any) {
+  } catch (error) {
     console.error('💥 API error:', error);
     
     // Handle specific error types
-    if (error.message?.includes('BLOCKFROST')) {
-      return NextResponse.json(
-        { 
-          verified: false,
-          error: 'Blockchain connection error. Please check Blockfrost configuration.',
-          details: error.message 
-        },
-        { status: 500 }
-      );
-    }
-    
-    if (error.message?.includes('rate limit')) {
-      return NextResponse.json(
-        { 
-          verified: false,
-          error: 'Rate limit exceeded. Please try again later.',
-          details: error.message 
-        },
-        { status: 429 }
-      );
+    if (error instanceof Error) {
+      if (error.message?.includes('BLOCKFROST')) {
+        return NextResponse.json(
+          { 
+            verified: false,
+            error: 'Blockchain connection error. Please check Blockfrost configuration.',
+            details: error.message 
+          },
+          { status: 500 }
+        );
+      }
+      
+      if (error.message?.includes('rate limit')) {
+        return NextResponse.json(
+          { 
+            verified: false,
+            error: 'Rate limit exceeded. Please try again later.',
+            details: error.message 
+          },
+          { status: 429 }
+        );
+      }
     }
     
     return NextResponse.json(
       { 
         verified: false,
         error: 'Internal server error while verifying hash on blockchain',
-        message: error.message || 'Unknown error'
+        message: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     );
@@ -283,14 +279,14 @@ export async function GET(request: NextRequest) {
     // Return verification result
     return NextResponse.json(verificationResult);
     
-  } catch (error: any) {
+  } catch (error) {
     console.error('💥 GET API error:', error);
     
     return NextResponse.json(
       { 
         verified: false,
         error: 'Internal server error while verifying hash',
-        message: error.message || 'Unknown error'
+        message: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     );

@@ -3,7 +3,6 @@ import {
   Lucid, 
   Blockfrost, 
   SpendingValidator, 
-  Data,
   LucidEvolution
 } from '@lucid-evolution/lucid';
 import { Network } from '@lucid-evolution/core-types';
@@ -16,6 +15,18 @@ interface ContractConfig {
   platformWalletMnemonic: string;
   network: 'Preview' | 'Preprod' | 'Mainnet';
   contractAddress: string;
+}
+
+// Interface for validator structure
+interface ValidatorData {
+  title: string;
+  compiledCode: string;
+  hash: string;
+}
+
+// Interface for plutus.json structure
+interface PlutusJson {
+  validators: ValidatorData[];
 }
 
 // Load environment configuration
@@ -62,14 +73,14 @@ export function loadAdavercValidator(): { compiledCode: string; hash: string } {
       );
     }
     
-    const plutusJson = JSON.parse(fs.readFileSync(plutusJsonPath, 'utf8'));
+    const plutusJson: PlutusJson = JSON.parse(fs.readFileSync(plutusJsonPath, 'utf8'));
     
     const spendValidator = plutusJson.validators.find(
-      (v: any) => v.title === 'adaverc_registry.adaverc_registry.spend'
+      (v: ValidatorData) => v.title === 'adaverc_registry.adaverc_registry.spend'
     );
     
     if (!spendValidator) {
-      const availableValidators = plutusJson.validators.map((v: any) => v.title).join(', ');
+      const availableValidators = plutusJson.validators.map((v: ValidatorData) => v.title).join(', ');
       throw new Error(
         `Adaverc registry spend validator not found in plutus.json.\n` +
         `Available validators: ${availableValidators}`
@@ -105,7 +116,7 @@ export function getNetworkType(networkStr: string): Network {
 }
 
 // Initialize Lucid with configuration
-export async function initLucidWithConfig(config: ContractConfig): Promise<LucidEvolution> {
+export async function initializeLucid(config: ContractConfig): Promise<LucidEvolution> {
   const network = getNetworkType(config.network);
   const blockfrostUrl = networkUrls[config.network];
 
@@ -120,45 +131,70 @@ export async function initLucidWithConfig(config: ContractConfig): Promise<Lucid
   return lucid;
 }
 
-// Create Adaverc metadata according to specification
-export function createAdavercMetadata(hash: string, metadata: any) {
-  return {
-    8434: { // ADAV label as specified in the smart contract specification
-      hash: hash,
-      form_id: metadata.formId,
-      response_id: metadata.responseId,
-      timestamp: Date.now(),
-      version: "1.0"
-    }
-  };
-}
-
-// Validate hash format
+// Utility function to validate hash format
 export function validateHashFormat(hash: string): boolean {
   return /^[a-fA-F0-9]{64}$/.test(hash);
 }
 
-// Format ADA amount for display
-export function formatAda(lovelace: bigint): string {
-  return (Number(lovelace) / 1_000_000).toFixed(6) + ' ADA';
+// Utility function to validate contract address format
+export function validateContractAddress(address: string): boolean {
+  // Basic validation for Cardano addresses
+  return address.startsWith('addr_test') || address.startsWith('addr');
 }
 
-// Check wallet balance
-export async function checkWalletBalance(lucid: LucidEvolution): Promise<{ lovelace: bigint; formatted: string }> {
-  const utxos = await lucid.wallet().getUtxos();
-  const totalLovelace = utxos.reduce((sum, utxo) => sum + utxo.assets.lovelace, BigInt(0));
-  
+// Interface for transaction metadata
+export interface AdavercMetadata {
+  hash: string;
+  form_id: string;
+  response_id: string;
+  timestamp: number;
+  version: string;
+}
+
+// Create standardized transaction metadata
+export function createTransactionMetadata(
+  hash: string, 
+  formId: string, 
+  responseId: string
+): AdavercMetadata {
   return {
-    lovelace: totalLovelace,
-    formatted: formatAda(totalLovelace)
+    hash,
+    form_id: formId,
+    response_id: responseId,
+    timestamp: Date.now(),
+    version: "1.0"
   };
 }
 
-// Estimate transaction cost
-export function estimateTransactionCost(): { storage: bigint; fee: bigint; total: bigint } {
-  return {
-    storage: BigInt(2_000_000), // 2 ADA for contract storage
-    fee: BigInt(175_000),       // ~0.175 ADA estimated transaction fee
-    total: BigInt(2_175_000)    // ~2.175 ADA total
-  };
+// Constants for the Adaverc protocol
+export const ADAVERC_CONSTANTS = {
+  METADATA_LABEL: 8434,
+  CONTRACT_UTXO_AMOUNT: BigInt(2000000), // 2 ADA in lovelace
+  PROTOCOL_VERSION: "1.0"
+} as const;
+
+// Error types for better error handling
+export class AdavercError extends Error {
+  constructor(message: string, public readonly code: string) {
+    super(message);
+    this.name = 'AdavercError';
+  }
+}
+
+export class ValidationError extends AdavercError {
+  constructor(message: string) {
+    super(message, 'VALIDATION_ERROR');
+  }
+}
+
+export class ConfigurationError extends AdavercError {
+  constructor(message: string) {
+    super(message, 'CONFIGURATION_ERROR');
+  }
+}
+
+export class BlockchainError extends AdavercError {
+  constructor(message: string) {
+    super(message, 'BLOCKCHAIN_ERROR');
+  }
 }

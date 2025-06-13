@@ -4,7 +4,6 @@ import {
   Lucid, 
   Blockfrost, 
   SpendingValidator, 
-  Data,
   LucidEvolution
 } from '@lucid-evolution/lucid';
 import { Network } from '@lucid-evolution/core-types';
@@ -24,6 +23,18 @@ const networkUrls = {
   Mainnet: 'https://cardano-mainnet.blockfrost.io/api/v0'
 };
 
+// Interface for validator structure
+interface ValidatorData {
+  title: string;
+  compiledCode: string;
+  hash: string;
+}
+
+// Interface for plutus.json structure
+interface PlutusJson {
+  validators: ValidatorData[];
+}
+
 // Load validator from plutus.json
 function loadValidator(): { compiledCode: string; hash: string } {
   try {
@@ -33,10 +44,10 @@ function loadValidator(): { compiledCode: string; hash: string } {
       throw new Error('plutus.json not found in project root. Please copy it from the smart contract project.');
     }
     
-    const plutusJson = JSON.parse(fs.readFileSync(plutusJsonPath, 'utf8'));
+    const plutusJson: PlutusJson = JSON.parse(fs.readFileSync(plutusJsonPath, 'utf8'));
     
     const spendValidator = plutusJson.validators.find(
-      (v: any) => v.title === 'adaverc_registry.adaverc_registry.spend'
+      (v: ValidatorData) => v.title === 'adaverc_registry.adaverc_registry.spend'
     );
     
     if (!spendValidator) {
@@ -95,8 +106,18 @@ async function initLucid(): Promise<LucidEvolution> {
   return lucid;
 }
 
+// Interface for metadata structure
+interface FormMetadata {
+  formId: string;
+  responseId: string;
+  timestamp?: number;
+  version?: string;
+  formTitle?: string;
+  responseCount?: number;
+}
+
 // Store hash on blockchain with metadata
-async function storeHashOnBlockchain(hash: string, metadata: any): Promise<string> {
+async function storeHashOnBlockchain(hash: string, metadata: FormMetadata): Promise<string> {
   try {
     console.log('🚀 Storing hash on blockchain:', hash);
     
@@ -105,7 +126,7 @@ async function storeHashOnBlockchain(hash: string, metadata: any): Promise<strin
     
     // Load validator
     const validator = loadValidator();
-    const contractValidator = createValidator(validator.compiledCode);
+    createValidator(validator.compiledCode); // Create validator but don't need to store it
     
     // Verify contract address matches
     if (!CONTRACT_ADDRESS) {
@@ -151,31 +172,23 @@ async function storeHashOnBlockchain(hash: string, metadata: any): Promise<strin
     return txHash;
     
   } catch (error) {
-    console.error('❌ Error storing hash on blockchain:', error);
+    console.error('💥 Error storing hash on blockchain:', error);
     throw error;
   }
 }
 
 export async function POST(request: NextRequest) {
-  console.log("📥 STORE HASH - Contract-based endpoint");
+  console.log("🔧 STORE HASH - Contract-based endpoint");
   
   try {
     const body = await request.json();
     const { hash, metadata } = body;
     
     // Validate required fields
-    if (!hash) {
-      console.log('❌ Missing hash in request');
+    if (!hash || !metadata) {
+      console.log('❌ Missing required fields');
       return NextResponse.json(
-        { error: 'Missing required field: hash' },
-        { status: 400 }
-      );
-    }
-    
-    if (!metadata || !metadata.formId || !metadata.responseId) {
-      console.log('❌ Missing required metadata fields');
-      return NextResponse.json(
-        { error: 'Missing required metadata fields (formId, responseId)' },
+        { error: 'Missing required fields: hash and metadata' },
         { status: 400 }
       );
     }
@@ -189,65 +202,73 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    console.log('🔍 Storing hash:', hash.substring(0, 16) + '...');
-    console.log('📋 Metadata:', metadata);
+    // Validate metadata structure
+    if (!metadata.formId || !metadata.responseId) {
+      console.log('❌ Invalid metadata structure');
+      return NextResponse.json(
+        { error: 'Invalid metadata structure. Required: formId, responseId' },
+        { status: 400 }
+      );
+    }
+    
+    console.log('✅ Request validation passed');
+    console.log('📋 Storing hash:', hash.substring(0, 16) + '...');
     
     // Store hash on blockchain
     const transactionHash = await storeHashOnBlockchain(hash, metadata);
     
-    // Return success response with blockchain transaction details
+    // Return success response
     return NextResponse.json({
       success: true,
       message: 'Hash stored successfully on blockchain',
       transactionHash: transactionHash,
       network: CARDANO_NETWORK,
-      contractAddress: CONTRACT_ADDRESS,
-      timestamp: new Date().toISOString(),
       blockchainProof: {
         label: 8434,
-        hash: hash,
         txHash: transactionHash
       }
     });
     
-  } catch (error: any) {
+  } catch (error) {
     console.error('💥 API error:', error);
     
     // Handle specific error types
-    if (error.message?.includes('plutus.json')) {
-      return NextResponse.json(
-        { 
-          error: 'Smart contract configuration error. Please ensure plutus.json is properly configured.',
-          details: error.message 
-        },
-        { status: 500 }
-      );
-    }
-    
-    if (error.message?.includes('BLOCKFROST')) {
-      return NextResponse.json(
-        { 
-          error: 'Blockchain connection error. Please check Blockfrost configuration.',
-          details: error.message 
-        },
-        { status: 500 }
-      );
-    }
-    
-    if (error.message?.includes('insufficient')) {
-      return NextResponse.json(
-        { 
-          error: 'Insufficient funds in platform wallet. Please ensure wallet has enough ADA.',
-          details: error.message 
-        },
-        { status: 500 }
-      );
+    if (error instanceof Error) {
+      if (error.message?.includes('BLOCKFROST')) {
+        return NextResponse.json(
+          { 
+            error: 'Blockchain connection error. Please check Blockfrost configuration.',
+            details: error.message 
+          },
+          { status: 500 }
+        );
+      }
+      
+      if (error.message?.includes('PLATFORM_WALLET')) {
+        return NextResponse.json(
+          { 
+            error: 'Wallet configuration error. Please check platform wallet setup.',
+            details: error.message 
+          },
+          { status: 500 }
+        );
+      }
+      
+      if (error.message?.includes('CONTRACT_ADDRESS')) {
+        return NextResponse.json(
+          { 
+            error: 'Contract configuration error. Please check contract address.',
+            details: error.message 
+          },
+          { status: 500 }
+        );
+      }
     }
     
     return NextResponse.json(
       { 
         error: 'Internal server error while storing hash on blockchain',
-        message: error.message || 'Unknown error'
+        message: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     );
