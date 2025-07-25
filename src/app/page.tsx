@@ -12,7 +12,7 @@ export default function Home() {
                 <div className="flex justify-center mb-6">
                   <Image 
                     src="/Logo.png" 
-                    alt="Adaverc Logo" 
+                    alt="notamperdata Logo" 
                     width={64}
                     height={64}
                     priority
@@ -22,7 +22,7 @@ export default function Home() {
                   Verify Research Data with Blockchain
                 </h1>
                 <p className="mt-6 text-lg leading-8 text-gray-600">
-                  Adaverc provides immutable verification for Google Forms responses, ensuring data integrity through Cardano blockchain technology.
+                  notamperdata provides immutable verification for Google Forms responses, ensuring data integrity through Cardano blockchain technology.
                 </p>
                 <div className="mt-10 flex items-center justify-center gap-x-6">
                   <Link href="/verify" className="rounded-md bg-[#0033AD] px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#002A8C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0033AD]">

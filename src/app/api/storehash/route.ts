@@ -9,8 +9,8 @@ import {
   loadContractConfig,
   networkUrls,
   getNetworkType,
-  loadAdavercValidator,
-  ADAVERC_CONSTANTS
+  loadnotamperdataValidator,
+  notamperdata_CONSTANTS
 } from '@/lib/contract';
 
 // Initialize Lucid using the contract utilities
@@ -53,7 +53,7 @@ async function storeHashOnBlockchain(hash: string, metadata: StoreMetadata): Pro
     const lucid = await initLucid();
     
     // Load validator using the embedded data (for future use)
-    const validator = loadAdavercValidator();
+    const validator = loadnotamperdataValidator();
     console.log('📜 Validator loaded, hash:', validator.hash);
     
     // Get contract address from environment
@@ -76,9 +76,9 @@ async function storeHashOnBlockchain(hash: string, metadata: StoreMetadata): Pro
       .newTx()
       .pay.ToAddress(
         config.contractAddress,
-        { lovelace: ADAVERC_CONSTANTS.CONTRACT_UTXO_AMOUNT }
+        { lovelace: notamperdata_CONSTANTS.CONTRACT_UTXO_AMOUNT }
       )
-      .attachMetadata(ADAVERC_CONSTANTS.METADATA_LABEL, txMetadata);
+      .attachMetadata(notamperdata_CONSTANTS.METADATA_LABEL, txMetadata);
     
     console.log('⚙️ Building transaction...');
     
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
       contractAddress: process.env.CONTRACT_ADDRESS,
       timestamp: new Date().toISOString(),
       blockchainProof: {
-        label: ADAVERC_CONSTANTS.METADATA_LABEL,
+        label: notamperdata_CONSTANTS.METADATA_LABEL,
         hash: hash,
         txHash: txHash
       }

@@ -327,7 +327,7 @@ function VerifyContent() {
     <div className="container mx-auto px-4 py-8">
       <main className="flex flex-col items-center justify-center min-h-[70vh]">
         <h1 className="text-3xl font-bold mb-8 text-center text-[#4285F4]">
-          Adaverc Dataset Verification
+          notamperdata Dataset Verification
         </h1>
 
         <div className="w-full max-w-lg">
@@ -501,7 +501,7 @@ function VerifyContent() {
         
         <div className="mt-8 text-center text-sm text-gray-500">
           <div className="flex items-center justify-center">
-            <p>Powered by Adaverc verification technology</p>
+            <p>Powered by notamperdata verification technology</p>
           </div>
         </div>
       </main>

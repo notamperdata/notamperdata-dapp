@@ -55,13 +55,13 @@ export default function SupportPage() {
           
           <div className="space-y-6">
             <div id="installation" className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-xl font-bold mb-3 text-gray-900">How do I install the Adaverc add-on?</h3>
+              <h3 className="text-xl font-bold mb-3 text-gray-900">How do I install the notamperdata add-on?</h3>
               <ol className="list-decimal pl-6 space-y-2 text-gray-700">
                 <li>Open your Google Form</li>
                 <li>Click on the puzzle piece icon (Add-ons) in the top right</li>
-                <li>Search for &ldquo;Adaverc&rdquo; in the marketplace</li>
+                <li>Search for &ldquo;notamperdata&rdquo; in the marketplace</li>
                 <li>Click &ldquo;Install&rdquo; and accept the permissions</li>
-                <li>Access the add-on from Add-ons → Adaverc → Open</li>
+                <li>Access the add-on from Add-ons → notamperdata → Open</li>
               </ol>
             </div>
 
@@ -69,7 +69,7 @@ export default function SupportPage() {
               <h3 className="text-xl font-bold mb-3 text-gray-900">How do I enable automatic verification?</h3>
               <p className="mb-3 text-gray-700">Once the add-on is installed:</p>
               <ol className="list-decimal pl-6 space-y-2 text-gray-700">
-                <li>Open the Adaverc sidebar (Add-ons → Adaverc → Open)</li>
+                <li>Open the notamperdata sidebar (Add-ons → notamperdata → Open)</li>
                 <li>Click &ldquo;Enable Automatic Verification&rdquo;</li>
                 <li>The status will change to &ldquo;Enabled&rdquo;</li>
                 <li>All future form submissions will be automatically hashed and stored</li>
@@ -99,7 +99,7 @@ export default function SupportPage() {
 
             <div id="permissions" className="bg-white p-6 rounded-lg shadow-md">
               <h3 className="text-xl font-bold mb-3 text-gray-900">What permissions does the add-on need?</h3>
-              <p className="mb-3 text-gray-700">Adaverc requires minimal permissions:</p>
+              <p className="mb-3 text-gray-700">notamperdata requires minimal permissions:</p>
               <ul className="list-disc pl-6 space-y-2 text-gray-700">
                 <li><strong className="text-gray-900">View and manage forms:</strong> To read form structure and responses for hashing</li>
                 <li><strong className="text-gray-900">Connect to external service:</strong> To send hashes to our verification servers</li>
@@ -113,7 +113,7 @@ export default function SupportPage() {
               <h3 className="text-xl font-bold mb-3 text-gray-900">Why did verification fail?</h3>
               <p className="mb-3 text-gray-700">Verification can fail if:</p>
               <ul className="list-disc pl-6 space-y-2 text-gray-700">
-                <li>The response was submitted before Adaverc was enabled</li>
+                <li>The response was submitted before notamperdata was enabled</li>
                 <li>The hash was incorrectly copied</li>
                 <li>The response data was modified after submission</li>
                 <li>There was a network error during the original submission</li>
