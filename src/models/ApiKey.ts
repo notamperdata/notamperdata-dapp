@@ -1,5 +1,5 @@
 // src/models/ApiKey.ts
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Model } from 'mongoose';
 
 export interface IApiKey extends Document {
   apiKeyId: string;        // Format: ak_randomstring (16 chars after ak_)
@@ -10,6 +10,23 @@ export interface IApiKey extends Document {
   isActive: boolean;       // Whether API key is active
   createdAt: Date;         // Creation timestamp
   lastUsedAt?: Date;       // Last usage timestamp
+  
+  // Instance methods
+  hasTokens(): boolean;
+  consumeTokens(amount?: number): boolean;
+}
+
+// Interface for static methods
+export interface IApiKeyModel extends Model<IApiKey> {
+  findActiveKey(apiKeyId: string): Promise<IApiKey | null>;
+  getUsageStats(): Promise<Array<{
+    _id: null;
+    totalKeys: number;
+    activeKeys: number;
+    totalTokensSold: number;
+    totalTokensUsed: number;
+    totalRevenue: number;
+  }>>;
 }
 
 const ApiKeySchema = new Schema<IApiKey>({
@@ -150,6 +167,7 @@ ApiKeySchema.statics.getUsageStats = function() {
 };
 
 // Check if the model is already defined to prevent overwriting
-const ApiKey = mongoose.models.ApiKey || mongoose.model<IApiKey>('ApiKey', ApiKeySchema);
+const ApiKey = (mongoose.models.ApiKey as IApiKeyModel) || 
+  mongoose.model<IApiKey, IApiKeyModel>('ApiKey', ApiKeySchema);
 
 export default ApiKey;
