@@ -12,6 +12,8 @@ import {
   loadNoTamperDataValidator,
   NoTamperData_CONSTANTS
 } from '@/lib/contract';
+import { ApiKeyManager } from '@/lib/ApiKeyManager';
+import dbConnect from '@/lib/mongodb';
 
 // Initialize Lucid using the contract utilities
 async function initLucid(): Promise<LucidEvolution> {
@@ -102,10 +104,29 @@ async function storeHashOnBlockchain(hash: string, metadata: StoreMetadata): Pro
   }
 }
 
+/**
+ * Extract API key from request headers
+ */
+function extractApiKey(request: NextRequest): string | null {
+  const authHeader = request.headers.get('authorization');
+  const apiKeyHeader = request.headers.get('x-api-key');
+  
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.substring(7);
+  } else if (apiKeyHeader) {
+    return apiKeyHeader;
+  }
+  
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔧 STORE HASH - Contract-based endpoint');
+    console.log('🔧 STORE HASH - Contract-based endpoint with API key validation');
     
+    // Connect to database for API key validation
+    await dbConnect();
+
     // Parse and validate request
     const requestData = await request.json();
     console.log('✅ Request validation passed');
@@ -137,12 +158,45 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Extract and validate API key
+    const apiKey = extractApiKey(request);
+    
+    if (!apiKey) {
+      console.error('❌ No API key provided');
+      return NextResponse.json(
+        { 
+          error: 'API key is required for storage operations',
+          message: 'Provide API key via Authorization header (Bearer token) or X-API-Key header'
+        },
+        { status: 401 }
+      );
+    }
+
+    console.log(`🔑 Validating API key: ${apiKey.substring(0, 8)}...`);
+
+    // Validate API key and consume 1 token
+    const apiKeyResult = await ApiKeyManager.validateAndConsumeToken(apiKey, 1);
+    
+    if (!apiKeyResult.valid) {
+      console.error(`❌ API key validation failed: ${apiKeyResult.error}`);
+      return NextResponse.json(
+        { 
+          error: 'Invalid or insufficient API key',
+          message: apiKeyResult.error
+        },
+        { status: 401 }
+      );
+    }
+
+    const remainingTokens = apiKeyResult.remainingTokens!;
+    console.log(`✅ API key validated. Remaining tokens: ${remainingTokens}`);
+
     console.log(`📋 Storing hash: ${hash.substring(0, 16)}...`);
 
     // Store hash on blockchain
     const txHash = await storeHashOnBlockchain(hash, metadata);
 
-    // Return success response
+    // Return success response with token information
     return NextResponse.json({
       success: true,
       message: 'Hash stored successfully on blockchain',
@@ -150,6 +204,10 @@ export async function POST(request: NextRequest) {
       network: process.env.CARDANO_NETWORK || 'Preview',
       contractAddress: process.env.CONTRACT_ADDRESS,
       timestamp: new Date().toISOString(),
+      tokenInfo: {
+        tokensUsed: 1,
+        remainingTokens: remainingTokens
+      },
       blockchainProof: {
         label: NoTamperData_CONSTANTS.METADATA_LABEL,
         hash: hash,
@@ -172,4 +230,78 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * GET /api/storehash
+ * 
+ * Returns information about the storage endpoint
+ * This endpoint provides documentation for the storage API
+ */
+export async function GET(): Promise<NextResponse> {
+  return NextResponse.json({
+    endpoint: 'storehash',
+    method: 'POST',
+    description: 'Store form response hash on Cardano blockchain',
+    authentication: 'Required - API key via Authorization header or X-API-Key header',
+    cost: '1 token per request',
+    requiredFields: {
+      hash: 'string (64-character hex string)',
+      metadata: {
+        formId: 'string',
+        responseId: 'string'
+      }
+    },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer {your_api_key}',
+      'X-API-Key': '{your_api_key} (alternative to Authorization)'
+    },
+    response: {
+      success: 'boolean',
+      transactionHash: 'string',
+      network: 'string',
+      contractAddress: 'string',
+      timestamp: 'string (ISO)',
+      tokenInfo: {
+        tokensUsed: 'number',
+        remainingTokens: 'number'
+      },
+      blockchainProof: {
+        label: 'number',
+        hash: 'string',
+        txHash: 'string'
+      }
+    },
+    errors: {
+      400: 'Bad request - missing or invalid data',
+      401: 'Unauthorized - invalid or missing API key',
+      500: 'Internal server error - blockchain or system error'
+    },
+    example: {
+      request: {
+        hash: 'fbc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b',
+        metadata: {
+          formId: '1FAIpQLSe_test_form_id',
+          responseId: 'test_response_123'
+        }
+      }
+    }
+  });
+}
+
+/**
+ * OPTIONS /api/storehash
+ * 
+ * CORS support for storage endpoint
+ */
+export async function OPTIONS(): Promise<NextResponse> {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Key'
+    }
+  });
 }
