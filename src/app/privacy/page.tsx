@@ -14,7 +14,7 @@ export default function PrivacyPage() {
           <section className="mb-10">
             <h2 className="text-2xl font-bold mb-4 text-gray-900">Introduction</h2>
             <p className="mb-4 text-gray-700 leading-relaxed">
-              notamperdata (&ldquo;we&rdquo;, &ldquo;our&rdquo;, or &ldquo;us&rdquo;) is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and safeguard information when you use our Google Forms add-on and verification service.
+              NoTamperData (&ldquo;we&rdquo;, &ldquo;our&rdquo;, or &ldquo;us&rdquo;) is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and safeguard information when you use our Google Forms add-on and verification service.
             </p>
           </section>
 
@@ -66,7 +66,7 @@ export default function PrivacyPage() {
             <h2 className="text-2xl font-bold mb-4 text-gray-900">Google API Services</h2>
             <div className="bg-blue-50 rounded-lg p-6">
               <p className="mb-4 text-gray-700">
-                notamperdata&apos;s use and transfer of information received from Google APIs adheres to the{' '}
+                NoTamperData&apos;s use and transfer of information received from Google APIs adheres to the{' '}
                 <a href="https://developers.google.com/terms/api-services-user-data-policy" 
                    target="_blank" 
                    rel="noopener noreferrer"
@@ -116,7 +116,7 @@ export default function PrivacyPage() {
               </p>
               <div className="text-gray-800">
                 <p className="mb-2"><strong>Developer Email:</strong> <a href="mailto:johnndigirigi01@gmail.com" className="text-[#0033AD] hover:underline">johnndigirigi01@gmail.com</a></p>
-                <p><strong>Website:</strong> <a href="https://notamperdata.vercel.app/support" className="text-[#0033AD] hover:underline">https://notamperdata.vercel.app/support</a></p>
+                <p><strong>Website:</strong> <a href="https://NoTamperData.vercel.app/support" className="text-[#0033AD] hover:underline">https://NoTamperData.vercel.app/support</a></p>
               </div>
             </div>
           </section>

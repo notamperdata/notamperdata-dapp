@@ -1,4 +1,4 @@
-# notamperdata API Testing
+# NoTamperData API Testing
 
 ###########################################
 # 1. HASH STORAGE (Smart Contract)

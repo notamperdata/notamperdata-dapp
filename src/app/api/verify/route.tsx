@@ -61,7 +61,7 @@ async function verifyHashOnBlockchain(hash: string): Promise<VerificationResult>
     
     const blockfrostUrl = networkUrls[CARDANO_NETWORK];
     
-    // Query metadata transactions with label 8434 (notamperdata label)
+    // Query metadata transactions with label 8434 (NoTamperData label)
     const metadataUrl = `${blockfrostUrl}/metadata/txs/labels/8434`;
     console.log('🌐 Querying metadata from:', metadataUrl);
     
@@ -97,9 +97,9 @@ async function verifyHashOnBlockchain(hash: string): Promise<VerificationResult>
     // Find matching transaction by hash
     const matchingTx = transactions.find(tx => {
       // The metadata is directly in json_metadata when querying by label
-      const notamperdataMetadata = tx.json_metadata;
-      console.log('🔍 Checking transaction:', tx.tx_hash, 'metadata:', notamperdataMetadata);
-      return notamperdataMetadata && notamperdataMetadata.hash === hash;
+      const NoTamperDataMetadata = tx.json_metadata;
+      console.log('🔍 Checking transaction:', tx.tx_hash, 'metadata:', NoTamperDataMetadata);
+      return NoTamperDataMetadata && NoTamperDataMetadata.hash === hash;
     });
     
     if (!matchingTx) {
@@ -114,7 +114,7 @@ async function verifyHashOnBlockchain(hash: string): Promise<VerificationResult>
     console.log('✅ Hash verified on blockchain!');
     console.log('🔗 Transaction hash:', matchingTx.tx_hash);
     
-    const notamperdataMetadata = matchingTx.json_metadata;
+    const NoTamperDataMetadata = matchingTx.json_metadata;
     
     // Get additional transaction details for proof
     let blockHeight: number | undefined;
@@ -155,11 +155,11 @@ async function verifyHashOnBlockchain(hash: string): Promise<VerificationResult>
       message: 'Hash successfully verified on blockchain',
       transactionHash: matchingTx.tx_hash,
       metadata: {
-        hash: notamperdataMetadata.hash,
-        form_id: notamperdataMetadata.form_id,
-        response_id: notamperdataMetadata.response_id,
-        timestamp: notamperdataMetadata.timestamp,
-        version: notamperdataMetadata.version
+        hash: NoTamperDataMetadata.hash,
+        form_id: NoTamperDataMetadata.form_id,
+        response_id: NoTamperDataMetadata.response_id,
+        timestamp: NoTamperDataMetadata.timestamp,
+        version: NoTamperDataMetadata.version
       },
       network: CARDANO_NETWORK,
       blockchainProof: {

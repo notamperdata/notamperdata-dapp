@@ -10,8 +10,8 @@ import { Network } from '@lucid-evolution/core-types';
 // EMBEDDED PLUTUS DATA - Replace this object with your plutus.json content
 const PLUTUS_DATA = {
   "preamble": {
-    "title": "ndigirigijohn/notamperdata-sc",
-    "description": "Aiken contracts for project 'ndigirigijohn/notamperdata-sc'",
+    "title": "ndigirigijohn/NoTamperData-sc",
+    "description": "Aiken contracts for project 'ndigirigijohn/NoTamperData-sc'",
     "version": "0.0.0",
     "plutusVersion": "v3",
     "compiler": {
@@ -22,7 +22,7 @@ const PLUTUS_DATA = {
   },
   "validators": [
     {
-      "title": "notamperdata_registry.notamperdata_registry.spend",
+      "title": "NoTamperData_registry.NoTamperData_registry.spend",
       "datum": {
         "title": "_datum",
         "schema": {
@@ -39,7 +39,7 @@ const PLUTUS_DATA = {
       "hash": "a2492486ed656e3fb854a2c240cf16055216c38ec94d166a533c5820"
     },
     {
-      "title": "notamperdata_registry.notamperdata_registry.else",
+      "title": "NoTamperData_registry.NoTamperData_registry.else",
       "redeemer": {
         "schema": {}
       },
@@ -103,17 +103,17 @@ export const networkUrls = {
 };
 
 // Load validator from embedded data ONLY - no file system access
-export function loadnotamperdataValidator(): { compiledCode: string; hash: string } {
+export function loadNoTamperDataValidator(): { compiledCode: string; hash: string } {
   console.log('📦 Loading validator from embedded data');
   
   const spendValidator = PLUTUS_DATA.validators.find(
-    (v: ValidatorData) => v.title === 'notamperdata_registry.notamperdata_registry.spend'
+    (v: ValidatorData) => v.title === 'NoTamperData_registry.NoTamperData_registry.spend'
   );
   
   if (!spendValidator) {
     const availableValidators = PLUTUS_DATA.validators.map((v: ValidatorData) => v.title).join(', ');
     throw new Error(
-      `notamperdata registry spend validator not found in embedded data.\n` +
+      `NoTamperData registry spend validator not found in embedded data.\n` +
       `Available validators: ${availableValidators}`
     );
   }
@@ -177,7 +177,7 @@ export function validateContractAddress(address: string): boolean {
 }
 
 // Interface for transaction metadata
-export interface notamperdataMetadata {
+export interface NoTamperDataMetadata {
   hash: string;
   form_id: string;
   response_id: string;
@@ -190,7 +190,7 @@ export function createTransactionMetadata(
   hash: string, 
   formId: string, 
   responseId: string
-): notamperdataMetadata {
+): NoTamperDataMetadata {
   return {
     hash,
     form_id: formId,
@@ -200,34 +200,34 @@ export function createTransactionMetadata(
   };
 }
 
-// Constants for the notamperdata protocol
-export const notamperdata_CONSTANTS = {
+// Constants for the NoTamperData protocol
+export const NoTamperData_CONSTANTS = {
   METADATA_LABEL: 8434,
   CONTRACT_UTXO_AMOUNT: BigInt(2000000), // 2 ADA in lovelace
   PROTOCOL_VERSION: "1.0"
 } as const;
 
 // Error types for better error handling
-export class notamperdataError extends Error {
+export class NoTamperDataError extends Error {
   constructor(message: string, public readonly code: string) {
     super(message);
-    this.name = 'notamperdataError';
+    this.name = 'NoTamperDataError';
   }
 }
 
-export class ValidationError extends notamperdataError {
+export class ValidationError extends NoTamperDataError {
   constructor(message: string) {
     super(message, 'VALIDATION_ERROR');
   }
 }
 
-export class ConfigurationError extends notamperdataError {
+export class ConfigurationError extends NoTamperDataError {
   constructor(message: string) {
     super(message, 'CONFIGURATION_ERROR');
   }
 }
 
-export class BlockchainError extends notamperdataError {
+export class BlockchainError extends NoTamperDataError {
   constructor(message: string) {
     super(message, 'BLOCKCHAIN_ERROR');
   }

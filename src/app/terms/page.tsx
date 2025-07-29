@@ -14,7 +14,7 @@ export default function TermsPage() {
           <section className="mb-10">
             <h2 className="text-2xl font-bold mb-4 text-gray-900">1. Acceptance of Terms</h2>
             <p className="text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-6">
-              By installing and using the notamperdata add-on for Google Forms (&ldquo;Service&rdquo;), you agree to be bound by these Terms of Service (&ldquo;Terms&rdquo;). If you do not agree to these Terms, do not use the Service.
+              By installing and using the NoTamperData add-on for Google Forms (&ldquo;Service&rdquo;), you agree to be bound by these Terms of Service (&ldquo;Terms&rdquo;). If you do not agree to these Terms, do not use the Service.
             </p>
           </section>
 
@@ -22,7 +22,7 @@ export default function TermsPage() {
             <h2 className="text-2xl font-bold mb-4 text-gray-900">2. Description of Service</h2>
             <div className="bg-gray-50 rounded-lg p-6">
               <p className="mb-4 text-gray-700">
-                notamperdata provides blockchain-based verification for Google Forms responses by:
+                NoTamperData provides blockchain-based verification for Google Forms responses by:
               </p>
               <ul className="list-disc pl-6 space-y-2 text-gray-700">
                 <li>Generating cryptographic hashes of form responses</li>
@@ -80,7 +80,7 @@ export default function TermsPage() {
             <h2 className="text-2xl font-bold mb-4 text-gray-900">7. Limitation of Liability</h2>
             <div className="bg-red-50 rounded-lg p-6">
               <p className="text-gray-800 font-semibold">
-                IN NO EVENT SHALL notamperdata BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING OUT OF OR RELATED TO YOUR USE OF THE SERVICE.
+                IN NO EVENT SHALL NoTamperData BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING OUT OF OR RELATED TO YOUR USE OF THE SERVICE.
               </p>
             </div>
           </section>
@@ -126,7 +126,7 @@ export default function TermsPage() {
               </p>
               <div className="text-gray-800">
                 <p className="mb-2"><strong>Email:</strong> <a href="mailto:johnndigirigi01@gmail.com" className="text-[#0033AD] hover:underline">johnndigirigi01@gmail.com</a></p>
-                <p><strong>Website:</strong> <a href="https://notamperdata.vercel.app/support" className="text-[#0033AD] hover:underline">https://notamperdata.vercel.app/support</a></p>
+                <p><strong>Website:</strong> <a href="https://NoTamperData.vercel.app/support" className="text-[#0033AD] hover:underline">https://NoTamperData.vercel.app/support</a></p>
               </div>
             </div>
           </section>

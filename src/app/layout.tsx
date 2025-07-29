@@ -12,8 +12,11 @@ const roboto = Roboto({
 });
 
 export const metadata: Metadata = {
-  title: 'notamperdata - Blockchain Verification for Google Forms',
+  title: 'NoTamperData - Blockchain Verification for Google Forms',
   description: 'Verify the integrity of Google Form responses using Cardano blockchain technology',
+    icons: {
+    icon: '/Logo.ico',
+  },
 };
 
 export default function RootLayout({
@@ -31,12 +34,12 @@ export default function RootLayout({
                 <Link href="/" className="flex-shrink-0 flex items-center">
                   <Image 
                     src="/Logo.png" 
-                    alt="notamperdata Logo" 
+                    alt="NoTamperData Logo" 
                     width={32} 
                     height={32} 
                     className="mr-3"
                   />
-                  <span className="text-xl font-bold text-[#4285F4]">Ada<span className="text-[#0033AD]">verc</span></span>
+                  <span className="text-xl font-bold text-[#4285F4]">NoTamper<span className="text-[#0033AD]">Data</span></span>
                 </Link>
               </div>
               <nav className="flex space-x-1">
@@ -53,7 +56,7 @@ export default function RootLayout({
                   Support
                 </Link>
                 <a 
-                  href="https://workspace.google.com/marketplace/app/notamperdata" 
+                  href="https://workspace.google.com/marketplace/app/NoTamperData" 
                   target="_blank"
                   rel="noopener noreferrer"
                   className="ml-3 bg-[#0033AD] text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-[#002A8C] transition-colors"
@@ -75,12 +78,12 @@ export default function RootLayout({
               <div className="flex items-center mb-4 md:mb-0">
                 <Image 
                   src="/Logo.png" 
-                  alt="notamperdata Logo" 
+                  alt="NoTamperData Logo" 
                   width={24} 
                   height={24} 
                   className="mr-2"
                 />
-                <span className="text-sm font-semibold text-[#0033AD]">notamperdata</span>
+                <span className="text-sm font-semibold text-[#0033AD]">NoTamperData</span>
               </div>
               <div className="flex space-x-6">
                 <Link href="/privacy" className="text-sm text-gray-500 hover:text-[#0033AD]">
@@ -94,7 +97,7 @@ export default function RootLayout({
                 </Link>
               </div>
               <p className="text-sm text-gray-500 mt-4 md:mt-0">
-                &copy; {new Date().getFullYear()} notamperdata. All rights reserved.
+                &copy; {new Date().getFullYear()} NoTamperData. All rights reserved.
               </p>
             </div>
           </div>
