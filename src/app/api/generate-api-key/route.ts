@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PaymentProcessor } from '@/lib/PaymentProccesor';
 import { ApiKeyManager } from '@/lib/ApiKeyManager';
+import { sendApiKeyEmail } from '@/lib/emailService';
 import dbConnect from '@/lib/mongodb';
 
 interface GenerateApiKeyRequest {
@@ -119,8 +120,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateA
       try {
         console.log(`📧 Sending API key to email: ${email}`);
         
-        // Import email service dynamically to avoid errors if not configured
-        const { sendApiKeyEmail } = await import('@/lib/emailService');
         await sendApiKeyEmail(email, apiKey, {
           adaAmount: adaAmount!,
           tokenAmount,
