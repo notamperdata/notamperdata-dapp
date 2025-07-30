@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Wallet, AlertCircle, CheckCircle, ExternalLink, RefreshCw } from 'lucide-react';
+import { Wallet, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 
 interface WalletInfo {
   name: string;
@@ -23,9 +23,10 @@ interface WalletConnectorProps {
   onConnect: (wallet: ConnectedWallet) => void;
   onDisconnect: () => void;
   connectedWallet: ConnectedWallet | null;
+  isModal?: boolean; // New prop for modal styling
 }
 
-export default function WalletConnector({ onConnect, onDisconnect, connectedWallet }: WalletConnectorProps) {
+export default function WalletConnector({ onConnect, onDisconnect, connectedWallet, isModal = false }: WalletConnectorProps) {
   const [availableWallets, setAvailableWallets] = useState<Array<{
     key: string;
     info: WalletInfo;
@@ -34,6 +35,7 @@ export default function WalletConnector({ onConnect, onDisconnect, connectedWall
   const [isConnecting, setIsConnecting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [walletBalance, setWalletBalance] = useState<string>('');
 
   // Detect available wallets from window.cardano
   const detectWallets = async () => {
@@ -79,15 +81,45 @@ export default function WalletConnector({ onConnect, onDisconnect, connectedWall
     setIsRefreshing(false);
   };
 
+  // Update wallet balance periodically
+  const updateWalletBalance = async () => {
+    if (!connectedWallet?.api) return;
+
+    try {
+      const balance = await connectedWallet.api.getBalance();
+      const adaBalance = (parseInt(balance) / 1000000).toFixed(2);
+      setWalletBalance(`${adaBalance} ADA`);
+      
+      // Update the connected wallet object with new balance
+      const updatedWallet = {
+        ...connectedWallet,
+        balance: `${adaBalance} ADA`
+      };
+      onConnect(updatedWallet);
+    } catch (error) {
+      console.warn('Failed to update wallet balance:', error);
+    }
+  };
+
   useEffect(() => {
     // Initial detection
     detectWallets();
     
     // Periodic detection for wallet installation
-    const interval = setInterval(detectWallets, 3000);
+    const detectionInterval = setInterval(detectWallets, 3000);
     
-    return () => clearInterval(interval);
-  }, []);
+    // Balance update interval for connected wallet
+    let balanceInterval: NodeJS.Timeout;
+    if (connectedWallet) {
+      updateWalletBalance(); // Update immediately
+      balanceInterval = setInterval(updateWalletBalance, 10000); // Update every 10 seconds
+    }
+    
+    return () => {
+      clearInterval(detectionInterval);
+      if (balanceInterval) clearInterval(balanceInterval);
+    };
+  }, [connectedWallet]);
 
   const connectWallet = async (walletKey: string, walletInfo: WalletInfo) => {
     setIsConnecting(walletKey);
@@ -98,93 +130,48 @@ export default function WalletConnector({ onConnect, onDisconnect, connectedWall
 
       const cardanoWallet = (window as any).cardano?.[walletKey];
       if (!cardanoWallet) {
-        throw new Error(`${walletInfo.name} wallet not found`);
+        throw new Error(`${walletInfo.name} not found`);
       }
 
-      // Enable wallet
+      // Enable the wallet
       const api = await cardanoWallet.enable();
-      
+      if (!api) {
+        throw new Error(`Failed to enable ${walletInfo.name}`);
+      }
+
       // Get wallet information
-      let address = '';
-      let balance = '0';
-      let networkId = 0;
+      const [address, balance, networkId] = await Promise.all([
+        api.getChangeAddress(),
+        api.getBalance().catch(() => '0'),
+        api.getNetworkId().catch(() => 0)
+      ]);
 
-      try {
-        // Try to get change address first
-        address = await api.getChangeAddress();
-      } catch {
-        try {
-          // Fallback to unused addresses
-          const unusedAddresses = await api.getUnusedAddresses();
-          if (unusedAddresses && unusedAddresses.length > 0) {
-            address = unusedAddresses[0];
-          }
-        } catch {
-          try {
-            // Final fallback to used addresses
-            const usedAddresses = await api.getUsedAddresses();
-            if (usedAddresses && usedAddresses.length > 0) {
-              address = usedAddresses[0];
-            }
-          } catch (addressError) {
-            console.warn('Could not get wallet address:', addressError);
-          }
-        }
+      // Validate network (Preview testnet = 0, Mainnet = 1)
+      const expectedNetwork = process.env.NEXT_PUBLIC_CARDANO_NETWORK === 'Mainnet' ? 1 : 0;
+      if (networkId !== expectedNetwork) {
+        const networkName = expectedNetwork === 1 ? 'Mainnet' : 'Preview Testnet';
+        throw new Error(`Please switch your wallet to ${networkName}`);
       }
 
-      try {
-        // Try to get balance
-        const balanceValue = await api.getBalance();
-        if (Array.isArray(balanceValue)) {
-          // Balance returned as array of assets
-          const lovelaceAsset = balanceValue.find(asset => asset.unit === 'lovelace');
-          if (lovelaceAsset) {
-            balance = (parseInt(lovelaceAsset.quantity) / 1_000_000).toFixed(2);
-          }
-        } else if (typeof balanceValue === 'string') {
-          // Balance returned as lovelace string
-          balance = (parseInt(balanceValue) / 1_000_000).toFixed(2);
-        }
-      } catch {
-        try {
-          // Try alternative balance method
-          const lovelace = await api.getLovelace();
-          balance = (parseInt(lovelace || '0') / 1_000_000).toFixed(2);
-        } catch (balanceError) {
-          console.warn('Could not get wallet balance:', balanceError);
-        }
-      }
-
-      try {
-        networkId = await api.getNetworkId();
-        
-        // Validate network
-        const expectedNetworkId = process.env.NEXT_PUBLIC_CARDANO_NETWORK === 'Mainnet' ? 1 : 0;
-        if (networkId !== expectedNetworkId) {
-          const networkName = expectedNetworkId === 1 ? 'Mainnet' : 'Preview Testnet';
-          throw new Error(`Please switch your wallet to ${networkName}`);
-        }
-      } catch (networkError) {
-        if (networkError instanceof Error && networkError.message.includes('switch')) {
-          throw networkError; // Re-throw network mismatch errors
-        }
-        console.warn('Could not get network ID:', networkError);
-      }
+      // Convert balance from lovelace to ADA
+      const adaBalance = (parseInt(balance) / 1000000).toFixed(2);
 
       const connectedWalletData: ConnectedWallet = {
         name: walletInfo.name,
         api,
-        address,
-        balance,
+        address: address || 'Unknown address',
+        balance: `${adaBalance} ADA`,
         networkId
       };
 
-      console.log(`Successfully connected to ${walletInfo.name}:`, {
-        address: address ? `${address.substring(0, 20)}...` : 'No address',
-        balance: `${balance} ADA`,
+      console.log('Wallet connected successfully:', {
+        name: walletInfo.name,
+        address: address?.substring(0, 20) + '...',
+        balance: `${adaBalance} ADA`,
         networkId
       });
 
+      setWalletBalance(`${adaBalance} ADA`);
       onConnect(connectedWalletData);
 
     } catch (error) {
@@ -209,6 +196,7 @@ export default function WalletConnector({ onConnect, onDisconnect, connectedWall
   const disconnectWallet = () => {
     onDisconnect();
     setError(null);
+    setWalletBalance('');
   };
 
   const formatBalance = (balance: string): string => {
@@ -221,10 +209,14 @@ export default function WalletConnector({ onConnect, onDisconnect, connectedWall
     }
   };
 
+  // Modal styling classes
+  const containerClass = isModal ? 'space-y-4' : 'space-y-6';
+  const headerClass = isModal ? 'text-base font-medium text-gray-900' : 'text-lg font-medium text-gray-900';
+
   // If wallet is connected, show connected state
   if (connectedWallet) {
     return (
-      <div className="space-y-4">
+      <div className={containerClass}>
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -240,27 +232,56 @@ export default function WalletConnector({ onConnect, onDisconnect, connectedWall
                     {connectedWallet.address.substring(0, 25)}...
                   </p>
                 )}
-                {connectedWallet.balance && (
+                {(connectedWallet.balance || walletBalance) && (
                   <p className="text-sm text-green-600">
-                    Balance: {formatBalance(connectedWallet.balance)}
+                    Balance: {formatBalance(connectedWallet.balance || walletBalance)}
                   </p>
                 )}
               </div>
             </div>
-            <button
-              onClick={disconnectWallet}
-              className="px-3 py-1 text-sm text-red-600 hover:text-red-800 border border-red-300 hover:border-red-400 rounded transition-colors"
-            >
-              Disconnect
-            </button>
+            {!isModal && (
+              <button
+                onClick={disconnectWallet}
+                className="px-3 py-1 text-sm text-red-600 hover:text-red-800 border border-red-300 hover:border-red-400 rounded transition-colors"
+              >
+                Disconnect
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Additional wallet info for modal */}
+        {isModal && (
+          <div className="space-y-3">
+            <div className="bg-gray-50 rounded-lg p-3">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-gray-600">Network:</span>
+                  <div className="font-medium">
+                    {connectedWallet.networkId === 1 ? 'Mainnet' : 'Preview Testnet'}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-gray-600">Status:</span>
+                  <div className="font-medium text-green-600">Connected</div>
+                </div>
+              </div>
+            </div>
+            
+            <button
+              onClick={disconnectWallet}
+              className="w-full px-3 py-2 text-sm text-red-600 hover:text-red-800 border border-red-300 hover:border-red-400 rounded-lg transition-colors"
+            >
+              Disconnect Wallet
+            </button>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className={containerClass}>
       {/* Error Display */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -282,7 +303,7 @@ export default function WalletConnector({ onConnect, onDisconnect, connectedWall
       {availableWallets.length > 0 ? (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-900">Available Wallets</h3>
+            <h3 className={headerClass}>Available Wallets</h3>
             <button
               onClick={detectWallets}
               disabled={isRefreshing}
@@ -302,7 +323,7 @@ export default function WalletConnector({ onConnect, onDisconnect, connectedWall
                 className="flex items-center space-x-4 p-4 border border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {info.icon && (
-                  <div className="w-12 h-12 flex-shrink-0">
+                  <div className={`${isModal ? 'w-10 h-10' : 'w-12 h-12'} flex-shrink-0`}>
                     <img 
                       src={info.icon} 
                       alt={`${info.name} icon`} 
@@ -330,8 +351,10 @@ export default function WalletConnector({ onConnect, onDisconnect, connectedWall
       ) : (
         /* No Wallets Detected */
         <div className="text-center py-8">
-          <Wallet className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Cardano Wallets Detected</h3>
+          <Wallet className={`${isModal ? 'w-12 h-12' : 'w-16 h-16'} text-gray-400 mx-auto mb-4`} />
+          <h3 className={`${isModal ? 'text-base' : 'text-lg'} font-medium text-gray-900 mb-2`}>
+            No Cardano Wallets Detected
+          </h3>
           <p className="text-gray-600 mb-6">
             Install a Cardano wallet extension to get started with NoTamperData
           </p>
@@ -365,14 +388,16 @@ export default function WalletConnector({ onConnect, onDisconnect, connectedWall
       </div>
 
       {/* Help Section */}
-      <div className="text-center text-sm text-gray-500">
-        <p>
-          Having trouble connecting? Check our{' '}
-          <a href="/docs/wallet-setup" className="text-blue-600 hover:underline">
-            wallet setup guide
-          </a>
-        </p>
-      </div>
+      {!isModal && (
+        <div className="text-center text-sm text-gray-500">
+          <p>
+            Having trouble connecting? Check our{' '}
+            <a href="/docs/wallet-setup" className="text-blue-600 hover:underline">
+              wallet setup guide
+            </a>
+          </p>
+        </div>
+      )}
     </div>
   );
 }
