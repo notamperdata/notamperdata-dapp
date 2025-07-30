@@ -1,4 +1,4 @@
-// src/components/wallet/WalletButton.tsx
+// Updated src/components/wallet/WalletButton.tsx
 'use client';
 
 import React from 'react';
@@ -45,23 +45,31 @@ export default function WalletButton({ connectedWallet, onToggleModal, onDisconn
     return `${address.substring(0, 8)}...${address.substring(address.length - 8)}`;
   };
 
+  // Handle button click with proper event handling - use useCallback to prevent re-renders
+  const handleButtonClick = React.useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('WalletButton clicked');
+    onToggleModal();
+  }, [onToggleModal]);
+
   if (connectedWallet) {
     return (
       <div className="relative">
         <button
-          onClick={onToggleModal}
-          className="flex items-center space-x-3 bg-green-50 hover:bg-green-100 border border-green-200 hover:border-green-300 rounded-lg px-4 py-2 transition-colors group"
+          onClick={handleButtonClick}
+          className="flex items-center space-x-3 bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 border border-green-300 hover:border-green-400 rounded-lg px-4 py-2 transition-all duration-200 group shadow-sm hover:shadow-md"
         >
-          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-            <Wallet className="w-4 h-4 text-green-600" />
+          <div className="w-8 h-8 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full flex items-center justify-center">
+            <Wallet className="w-4 h-4 text-green-700" />
           </div>
           
           <div className="text-left">
             <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium text-green-900">
+              <span className="text-sm font-semibold text-green-900">
                 {connectedWallet.name}
               </span>
-              <ChevronDown className="w-4 h-4 text-green-600 group-hover:text-green-700" />
+              <ChevronDown className="w-4 h-4 text-green-600 group-hover:text-green-700 transition-colors" />
             </div>
             
             <div className="flex items-center space-x-3 text-xs text-green-700">
@@ -70,7 +78,7 @@ export default function WalletButton({ connectedWallet, onToggleModal, onDisconn
                   {formatBalance(connectedWallet.balance)}
                 </span>
               )}
-              <span className="text-green-600">
+              <span className="text-green-600 font-mono">
                 {formatAddress(connectedWallet.address)}
               </span>
             </div>
@@ -82,11 +90,11 @@ export default function WalletButton({ connectedWallet, onToggleModal, onDisconn
 
   return (
     <button
-      onClick={onToggleModal}
-      className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 transition-colors font-medium"
+      onClick={handleButtonClick}
+      className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg px-4 py-2 transition-all duration-200 font-medium shadow-md hover:shadow-lg transform hover:scale-105"
     >
       <Wallet className="w-4 h-4" />
-      <span>Connect</span>
+      <span>Connect Wallet</span>
       <ChevronDown className="w-4 h-4" />
     </button>
   );

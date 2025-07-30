@@ -1,4 +1,4 @@
-// src/app/access/page.tsx
+// Updated src/app/access/page.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -85,38 +85,48 @@ function AccessPageContent() {
     setStep('payment');
   };
 
-  const handlePayment = async () => {
+  const handleSendPayment = async () => {
     if (!connectedWallet) {
       alert('Please connect your wallet first');
       return;
     }
 
     setIsProcessing(true);
-    
     try {
-      // Process payment using the PaymentProcessor
+      // Process payment using the correct PaymentRequest interface
       const result = await paymentProcessor.processPayment({
         walletApi: connectedWallet.api,
         amount: tokenAmount,
         platformAddress: platformAddress,
         email: email,
         metadata: {
-          referenceId: paymentUtils.generateTransactionRef(),
+          purpose: 'NoTamperData API Token Purchase',
           tokensPurchased: paymentValidation.calculateTokens(tokenAmount)
         }
       });
 
+      console.log('Payment result:', result);
+      
+      // Check if payment was successful and extract transaction hash
       if (result.success && result.transactionHash) {
-        // Generate API key after successful payment
+        console.log('Payment successful, transaction hash:', result.transactionHash);
+        
+        // Generate API key using the transaction hash
         const apiKeyResult = await generateApiKey(result.transactionHash);
-        setGeneratedApiKey(apiKeyResult);
-        setStep('complete');
+        
+        if (apiKeyResult.success) {
+          setGeneratedApiKey(apiKeyResult);
+          setStep('complete');
+        } else {
+          alert(`API key generation failed: ${apiKeyResult.error}`);
+        }
       } else {
         throw new Error(result.error || 'Payment failed');
       }
     } catch (error) {
-      console.error('Payment error:', error);
-      alert(`Payment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Payment failed:', error);
+      alert(`Payment failed: ${error instanceof Error ? 
+        error.message : 'Unknown error'}`);
     } finally {
       setIsProcessing(false);
     }
@@ -154,41 +164,82 @@ function AccessPageContent() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Fix for modal auto-close issue: Proper state management with useCallback
+  const handleModalToggle = React.useCallback(() => {
+    console.log('Modal toggle clicked, current state:', isModalOpen);
+    setIsModalOpen(prev => {
+      const newState = !prev;
+      console.log('Setting modal state to:', newState);
+      return newState;
+    });
+  }, [isModalOpen]);
+
+  const handleModalClose = React.useCallback((e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    console.log('Closing modal');
+    setIsModalOpen(false);
+  }, []);
+
+  const handleModalContentClick = React.useCallback((e: React.MouseEvent) => {
+    // Prevent modal from closing when clicking inside
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  // Add effect to debug modal state changes
+  useEffect(() => {
+    console.log('Modal state changed:', isModalOpen);
+  }, [isModalOpen]);
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Wallet Button Section - Top Right Below Navigation */}
-      <div className="bg-white border-b border-gray-200">
+      <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200/50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-end py-4">
             <WalletButton
               connectedWallet={connectedWallet}
-              onToggleModal={() => setIsModalOpen(!isModalOpen)}
+              onToggleModal={handleModalToggle}
               onDisconnect={handleWalletDisconnect}
             />
           </div>
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Modal - Fixed click handling with improved state management */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div 
+          className="fixed inset-0 z-50 overflow-y-auto"
+          onClick={handleModalClose}
+        >
           <div className="flex items-start justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            {/* Backdrop */}
+            {/* Backdrop - Click to close */}
             <div 
-              className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-              onClick={() => setIsModalOpen(false)}
+              className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm transition-opacity"
+              aria-hidden="true"
             ></div>
 
-            {/* Modal Content */}
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            {/* Modal Content - Prevent auto-close */}
+            <div 
+              className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full"
+              onClick={handleModalContentClick}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="modal-title"
+            >
               <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-medium text-gray-900">
+                  <h3 id="modal-title" className="text-lg font-medium text-gray-900">
                     {connectedWallet ? 'Wallet Information' : 'Connect Wallet'}
                   </h3>
                   <button
-                    onClick={() => setIsModalOpen(false)}
-                    className="text-gray-400 hover:text-gray-600"
+                    onClick={handleModalClose}
+                    className="text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100 transition-colors"
+                    type="button"
+                    aria-label="Close modal"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -223,73 +274,63 @@ function AccessPageContent() {
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
             Access NoTamperData API
           </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+          <p className="text-xl text-gray-700 max-w-3xl mx-auto">
             Connect your Cardano wallet, 
             choose your token amount, and get instant access to blockchain-based form verification.
           </p>
         </div>
 
-        {/* Progress Steps */}
-        <div className="mb-8">
-          <div className="flex justify-center">
-            <div className="flex items-center space-x-4">
-              {[
-                { key: 'connect', label: 'Connect Wallet', icon: Wallet },
-                { key: 'configure', label: 'Configure Purchase', icon: CreditCard },
-                { key: 'payment', label: 'Send Payment', icon: ExternalLink },
-                { key: 'complete', label: 'Get API Key', icon: Key }
-              ].map(({ key, label, icon: Icon }, index) => (
-                <React.Fragment key={key}>
-                  <div className={`flex items-center space-x-2 px-4 py-2 rounded-lg ${
-                    step === key 
-                      ? 'bg-blue-600 text-white' 
-                      : index < ['connect', 'configure', 'payment', 'complete'].indexOf(step)
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    <Icon className="w-4 h-4" />
-                    <span className="text-sm font-medium">{label}</span>
-                  </div>
-                  {index < 3 && (
-                    <div className={`w-8 h-px ${
-                      index < ['connect', 'configure', 'payment', 'complete'].indexOf(step)
-                        ? 'bg-green-300'
-                        : 'bg-gray-300'
-                    }`} />
-                  )}
-                </React.Fragment>
-              ))}
-            </div>
-          </div>
-        </div>
+        {/* REMOVED: Progress Steps Section - Hidden from UI as requested */}
+        {/* The steps logic remains in the code but is not displayed to the user */}
 
         {/* Main Content */}
         <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-lg shadow-lg p-6">
+          <div className="bg-white/70 backdrop-blur-sm rounded-lg shadow-xl border border-gray-200/50 p-6">
             
             {/* Step 1: Connect Wallet */}
             {step === 'connect' && (
               <div className="text-center">
                 <Wallet className="w-16 h-16 text-blue-600 mx-auto mb-4" />
                 <h2 className="text-2xl font-bold text-gray-900 mb-4">Connect Your Cardano Wallet</h2>
-                <p className="text-gray-600 mb-8">
+                <p className="text-gray-700 mb-8">
                   Connect your Cardano wallet to purchase API tokens securely
                 </p>
                 
                 {!connectedWallet ? (
-                  <button
-                    onClick={() => setIsModalOpen(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors"
-                  >
-                    Start Connection
-                  </button>
+                  <div>
+                    <button
+                      onClick={() => setIsModalOpen(true)}
+                      className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                    >
+                      <Wallet className="w-5 h-5 mr-2" />
+                      Connect Wallet
+                    </button>
+                  </div>
                 ) : (
-                  <button
-                    onClick={handleStartConfiguration}
-                    className="bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-6 rounded-lg transition-colors"
-                  >
-                    Continue to Configuration
-                  </button>
+                  <div className="space-y-4">
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <div className="flex items-center justify-center space-x-3">
+                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                          <Check className="w-6 h-6 text-green-600" />
+                        </div>
+                        <div className="text-center">
+                          <h3 className="font-medium text-green-900">
+                            Connected to {connectedWallet.name}
+                          </h3>
+                          <p className="text-sm text-green-700">
+                            Ready to proceed with token purchase
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={handleStartConfiguration}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+                    >
+                      Continue to Configuration
+                    </button>
+                  </div>
                 )}
               </div>
             )}
@@ -297,165 +338,117 @@ function AccessPageContent() {
             {/* Step 2: Configure Purchase */}
             {step === 'configure' && (
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Configure Your Purchase</h2>
-                
-                {/* Connected Wallet Info */}
-                {connectedWallet && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-                    <div className="flex items-center space-x-2">
-                      <Check className="w-5 h-5 text-green-600" />
-                      <span className="font-medium text-green-800">
-                        Connected to {connectedWallet.name}
-                      </span>
-                    </div>
-                    <p className="text-sm text-green-700 mt-1">
-                      Address: {connectedWallet.address?.substring(0, 20)}...
-                    </p>
-                    {connectedWallet.balance && (
-                      <p className="text-sm text-green-700">
-                        Balance: {connectedWallet.balance}
-                      </p>
-                    )}
-                  </div>
-                )}
+                <div className="text-center mb-6">
+                  <CreditCard className="w-16 h-16 text-blue-600 mx-auto mb-4" />
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Configure Purchase</h2>
+                  <p className="text-gray-700">
+                    Choose the number of API tokens to purchase
+                  </p>
+                </div>
 
-                {/* Token Amount Selection */}
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Number of Tokens (1 ADA = 1 Token)
-                  </label>
-                  <div className="grid grid-cols-4 gap-3 mb-4">
-                    {[5, 10, 25, 50].map((amount) => (
-                      <button
-                        key={amount}
-                        onClick={() => setTokenAmount(amount)}
-                        className={`p-3 rounded-lg border text-center transition-colors ${
-                          tokenAmount === amount
-                            ? 'border-blue-500 bg-blue-50 text-blue-700'
-                            : 'border-gray-300 hover:border-gray-400'
-                        }`}
-                      >
-                        <div className="font-semibold">{amount}</div>
-                        <div className="text-xs text-gray-500">{paymentUtils.formatAda(amount)}</div>
-                      </button>
-                    ))}
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
+                <div className="space-y-6">
+                  {/* Token Amount */}
+                  <div>
+                    <label htmlFor="tokenAmount" className="block text-sm font-medium text-gray-800 mb-2">
+                      Number of Tokens
+                    </label>
                     <input
                       type="number"
+                      id="tokenAmount"
                       min="1"
                       max="1000"
                       value={tokenAmount}
-                      onChange={(e) => setTokenAmount(parseInt(e.target.value) || 1)}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Custom amount"
+                      onChange={(e) => setTokenAmount(Number(e.target.value))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
                     />
-                    <span className="text-sm text-gray-500">tokens</span>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Cost: {tokenAmount} ADA (1 ADA = 1 token)
+                    </p>
                   </div>
-                </div>
 
-                {/* Email Input */}
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email Address (Optional)
-                  </label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="your@email.com"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Optional: Receive API key and usage notifications
-                  </p>
-                </div>
+                  {/* Email */}
+                  <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-800 mb-2">
+                      Email Address (for API key delivery)
+                    </label>
+                    <input
+                      type="email"
+                      id="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="your@email.com"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
+                    />
+                  </div>
 
-                {/* Summary */}
-                <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                  <h3 className="font-medium text-gray-900 mb-2">Purchase Summary</h3>
-                  <div className="space-y-1 text-sm">
-                    <div className="flex justify-between">
-                      <span>Tokens:</span>
-                      <span>{paymentValidation.calculateTokens(tokenAmount)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Cost:</span>
-                      <span>{paymentUtils.formatAda(tokenAmount)}</span>
-                    </div>
-                    <div className="flex justify-between font-medium">
-                      <span>Total:</span>
-                      <span>{paymentUtils.formatAda(paymentValidation.calculateTotalCost(tokenAmount))}</span>
+                  {/* Platform Address */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <h3 className="font-medium text-gray-900 mb-2">Payment Details</h3>
+                    <div className="text-sm text-gray-700 space-y-1">
+                      <div><strong>Recipient:</strong> NoTamperData Platform</div>
+                      <div><strong>Amount:</strong> {tokenAmount} ADA</div>
+                      <div><strong>Tokens:</strong> {tokenAmount} API tokens</div>
                     </div>
                   </div>
-                </div>
 
-                <button
-                  onClick={handleProceedToPayment}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"
-                >
-                  Proceed to Payment
-                </button>
+                  <button
+                    onClick={handleProceedToPayment}
+                    disabled={!email || tokenAmount < 1}
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+                  >
+                    Proceed to Payment
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* Step 3: Payment */}
+            {/* Step 3: Send Payment */}
             {step === 'payment' && (
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Send Payment</h2>
-                
                 <div className="text-center mb-6">
-                  <CreditCard className="w-16 h-16 text-blue-600 mx-auto mb-4" />
-                  <p className="text-gray-600 mb-4">
-                    Click the button below to send {paymentUtils.formatAda(tokenAmount)} to complete your purchase.
-                    Your wallet will prompt you to confirm the transaction.
+                  <ExternalLink className="w-16 h-16 text-blue-600 mx-auto mb-4" />
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Send Payment</h2>
+                  <p className="text-gray-700">
+                    Review and confirm your payment to receive API tokens
                   </p>
                 </div>
 
-                <div className="space-y-4 mb-6">
-                  <div className="text-left bg-gray-50 p-4 rounded-lg">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-600">Amount:</span>
-                        <div className="font-semibold">{paymentUtils.formatAda(tokenAmount)}</div>
+                <div className="space-y-6">
+                  {/* Payment Summary */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h3 className="font-medium text-blue-900 mb-3">Payment Summary</h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-blue-800">Tokens:</span>
+                        <span className="font-medium text-blue-900">{tokenAmount}</span>
                       </div>
-                      <div>
-                        <span className="text-gray-600">Tokens:</span>
-                        <div className="font-semibold">{paymentValidation.calculateTokens(tokenAmount)} tokens</div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-800">Cost:</span>
+                        <span className="font-medium text-blue-900">{tokenAmount} ADA</span>
                       </div>
-                      <div className="col-span-2">
-                        <span className="text-gray-600">Platform Address:</span>
-                        <div className="font-mono text-xs break-all mt-1">
-                          {platformAddress}
-                        </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-800">Email:</span>
+                        <span className="font-medium text-blue-900">{email}</span>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="space-y-3">
                   <button
-                    onClick={handlePayment}
+                    onClick={handleSendPayment}
                     disabled={isProcessing}
-                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-colors"
+                    className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2"
                   >
                     {isProcessing ? (
-                      <div className="flex items-center justify-center space-x-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                         <span>Processing Payment...</span>
-                      </div>
+                      </>
                     ) : (
-                      'Send Payment'
+                      <>
+                        <ExternalLink className="w-5 h-5" />
+                        <span>Send Payment</span>
+                      </>
                     )}
-                  </button>
-                  
-                  <button
-                    onClick={() => setStep('configure')}
-                    disabled={isProcessing}
-                    className="w-full bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:cursor-not-allowed text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors"
-                  >
-                    Back to Configuration
                   </button>
                 </div>
               </div>
@@ -463,90 +456,58 @@ function AccessPageContent() {
 
             {/* Step 4: Complete */}
             {step === 'complete' && generatedApiKey && (
-              <div className="text-center">
-                <Key className="w-16 h-16 text-green-600 mx-auto mb-4" />
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">API Key Generated!</h2>
-                
-                {generatedApiKey.success ? (
-                  <div className="space-y-4">
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <p className="text-green-800 mb-2">Payment successful!</p>
-                      <p className="text-sm text-green-700">
-                        Transaction: {generatedApiKey.transactionHash?.substring(0, 20)}...
-                      </p>
-                    </div>
-                    
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Your API Key
-                      </label>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="text"
-                          value={generatedApiKey.apiKey || ''}
-                          readOnly
-                          className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg font-mono text-sm"
-                        />
-                        <button
-                          onClick={() => copyToClipboard(generatedApiKey.apiKey || '')}
-                          className="flex items-center space-x-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                          {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                          <span className="text-sm">{copied ? 'Copied!' : 'Copy'}</span>
-                        </button>
-                      </div>
-                    </div>
+              <div>
+                <div className="text-center mb-6">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Key className="w-8 h-8 text-green-600" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">API Key Generated!</h2>
+                  <p className="text-gray-700">
+                    Your payment was successful. Here's your API key:
+                  </p>
+                </div>
 
-                    <div className="text-left bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <h3 className="font-medium text-blue-900 mb-2">Important Notes:</h3>
-                      <ul className="text-sm text-blue-800 space-y-1">
-                        <li>• Store your API key securely</li>
-                        <li>• You have {generatedApiKey.tokens} verification tokens</li>
-                        <li>• Each form verification uses 1 token</li>
-                        <li>• Check our documentation for integration guides</li>
-                      </ul>
-                    </div>
-
-                    <div className="space-y-2">
-                      <a
-                        href="/docs"
-                        className="block w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-center"
-                      >
-                        View Documentation
-                      </a>
+                <div className="space-y-6">
+                  {/* API Key Display */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-gray-800">Your API Key</label>
                       <button
-                        onClick={() => {
-                          setStep('connect');
-                          setGeneratedApiKey(null);
-                          setTokenAmount(10);
-                          setEmail('');
-                        }}
-                        className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors"
+                        onClick={() => copyToClipboard(generatedApiKey.apiKey || '')}
+                        className="text-blue-600 hover:text-blue-800 p-1"
                       >
-                        Purchase More Tokens
+                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                       </button>
                     </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                      <div className="flex items-center space-x-2">
-                        <AlertCircle className="w-5 h-5 text-red-600" />
-                        <span className="font-medium text-red-800">API Key Generation Failed</span>
-                      </div>
-                      <p className="text-sm text-red-700 mt-1">
-                        {generatedApiKey.error || 'Unknown error occurred'}
-                      </p>
+                    <div className="bg-white border border-gray-300 rounded p-3 font-mono text-sm text-gray-900 break-all">
+                      {generatedApiKey.apiKey}
                     </div>
-                    
-                    <button
-                      onClick={() => setStep('payment')}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                    >
-                      Try Again
-                    </button>
                   </div>
-                )}
+
+                  {/* Transaction Details */}
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <h3 className="font-medium text-green-900 mb-2">Transaction Complete</h3>
+                    <div className="text-sm text-green-800 space-y-1">
+                      <div>Tokens: {generatedApiKey.tokens}</div>
+                      <div>ADA Paid: {generatedApiKey.adaAmount}</div>
+                      {generatedApiKey.transactionHash && (
+                        <div className="break-all">
+                          TX: {generatedApiKey.transactionHash}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Next Steps */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h3 className="font-medium text-blue-900 mb-2">Next Steps</h3>
+                    <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+                      <li>Save your API key securely</li>
+                      <li>Check your email for the API key backup</li>
+                      <li>Visit our <a href="/docs" className="underline">documentation</a> to get started</li>
+                    </ol>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -556,7 +517,6 @@ function AccessPageContent() {
   );
 }
 
-// Main component wrapped with WalletProvider
 export default function AccessPage() {
   return (
     <WalletProvider>
