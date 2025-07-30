@@ -5,17 +5,9 @@ import React, { useState, useEffect } from 'react';
 import { Copy, Check, AlertCircle, Wallet, CreditCard, Key, ExternalLink, X } from 'lucide-react';
 import WalletConnector from '@/components/wallet/WalletConnector';
 import WalletButton from '@/components/wallet/WalletButton';
-
-interface WalletAPI {
-  getBalance(): Promise<string>;
-  getChangeAddress(): Promise<string>;
-  getNetworkId(): Promise<number>;
-  signTx(tx: string, partialSign?: boolean): Promise<string>;
-  submitTx(tx: string): Promise<string>;
-  getUtxos(amount?: string): Promise<string[]>;
-  enable(): Promise<WalletAPI>;
-  isEnabled(): Promise<boolean>;
-}
+import { useWallet, WalletProvider } from '@/hooks/useWallet';
+import { PaymentProcessor } from '@/lib/PaymentProccesor';
+import { paymentUtils, paymentValidation } from '@/lib/paymentConfig';
 
 interface GeneratedApiKey {
   success: boolean;
@@ -27,13 +19,9 @@ interface GeneratedApiKey {
   message?: string;
 }
 
-export default function AccessPage() {
-  const [connectedWallet, setConnectedWallet] = useState<{
-    name: string;
-    api: WalletAPI;
-    address: string;
-    balance?: string;
-  } | null>(null);
+function AccessPageContent() {
+  // Use global wallet state
+  const { connectedWallet, connectWallet, disconnectWallet, error: walletError, clearError } = useWallet();
   
   const [tokenAmount, setTokenAmount] = useState<number>(10);
   const [email, setEmail] = useState<string>('');
@@ -42,6 +30,7 @@ export default function AccessPage() {
   const [step, setStep] = useState<'connect' | 'configure' | 'payment' | 'complete'>('connect');
   const [copied, setCopied] = useState<boolean>(false);
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
+  const [paymentProcessor] = useState(() => new PaymentProcessor());
   
   // Modal state management
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -59,15 +48,27 @@ export default function AccessPage() {
     }
   }, [connectedWallet, step]);
 
-  const platformAddress = process.env.NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS || 'addr_test1wqg448fq8u4ry04dtf3jsxqhw0avejz887ze5x0mtgpgw9gzzhue3';
+  // Clear wallet errors when modal opens
+  useEffect(() => {
+    if (isModalOpen) {
+      clearError();
+    }
+  }, [isModalOpen, clearError]);
 
-  const handleWalletConnect = (wallet: { name: string; api: WalletAPI; address: string; balance?: string }) => {
-    setConnectedWallet(wallet);
-    setIsModalOpen(false); // Close modal when wallet connects
+  const platformAddress = paymentUtils.getPlatformAddress();
+
+  const handleWalletConnect = async (walletKey: string) => {
+    try {
+      await connectWallet(walletKey);
+      setIsModalOpen(false); // Close modal when wallet connects
+    } catch (error) {
+      // Error is handled by the wallet hook
+      console.error('Wallet connection failed:', error);
+    }
   };
 
   const handleWalletDisconnect = () => {
-    setConnectedWallet(null);
+    disconnectWallet();
     setStep('connect');
     setGeneratedApiKey(null);
   };
@@ -77,8 +78,8 @@ export default function AccessPage() {
   };
 
   const handleProceedToPayment = () => {
-    if (tokenAmount < 1) {
-      alert('Minimum 1 token required');
+    if (!paymentValidation.isValidAmount(tokenAmount)) {
+      alert(`Amount must be between ${paymentValidation.calculateTokens(1)} and ${paymentValidation.calculateTokens(1000)} tokens`);
       return;
     }
     setStep('payment');
@@ -93,8 +94,17 @@ export default function AccessPage() {
     setIsProcessing(true);
     
     try {
-      // Build and submit the actual transaction using the connected wallet
-      const result = await buildAndSubmitPayment();
+      // Process payment using the PaymentProcessor
+      const result = await paymentProcessor.processPayment({
+        walletApi: connectedWallet.api,
+        amount: tokenAmount,
+        platformAddress: platformAddress,
+        email: email,
+        metadata: {
+          referenceId: paymentUtils.generateTransactionRef(),
+          tokensPurchased: paymentValidation.calculateTokens(tokenAmount)
+        }
+      });
 
       if (result.success && result.transactionHash) {
         // Generate API key after successful payment
@@ -109,56 +119,6 @@ export default function AccessPage() {
       alert(`Payment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsProcessing(false);
-    }
-  };
-
-  const buildAndSubmitPayment = async (): Promise<{
-    success: boolean;
-    transactionHash?: string;
-    error?: string;
-  }> => {
-    try {
-      if (!connectedWallet?.api) {
-        throw new Error('Wallet not connected');
-      }
-
-      // Get wallet UTXOs
-      const utxos = await connectedWallet.api.getUtxos();
-      if (!utxos || utxos.length === 0) {
-        throw new Error('No UTXOs available in wallet');
-      }
-
-      // Build transaction outputs
-      const outputs = [{
-        address: platformAddress,
-        amount: { lovelace: BigInt(tokenAmount * 1000000) } // Convert ADA to lovelace
-      }];
-
-      // For now, we'll simulate the transaction building process
-      // In a real implementation, you would use Lucid to build the transaction
-      console.log('Building transaction with outputs:', outputs);
-      console.log('Available UTXOs:', utxos.length);
-
-      // Simulate transaction building and signing
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate processing time
-
-      // For demo purposes, generate a mock transaction hash
-      // In real implementation, this would come from the actual submitted transaction
-      const mockTxHash = Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('');
-      
-      console.log('Transaction submitted successfully:', mockTxHash);
-
-      return {
-        success: true,
-        transactionHash: mockTxHash
-      };
-
-    } catch (error) {
-      console.error('Transaction building failed:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Transaction failed'
-      };
     }
   };
 
@@ -234,8 +194,19 @@ export default function AccessPage() {
                   </button>
                 </div>
                 
+                {/* Show wallet error if exists */}
+                {walletError && (
+                  <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
+                    <div className="flex items-center space-x-2">
+                      <AlertCircle className="w-4 h-4 text-red-600" />
+                      <span className="text-sm font-medium text-red-800">Connection Error</span>
+                    </div>
+                    <p className="text-sm text-red-700 mt-1">{walletError}</p>
+                  </div>
+                )}
+                
                 <WalletConnector
-                  onConnect={handleWalletConnect}
+                  onConnect={(wallet) => handleWalletConnect(wallet.name)}
                   onDisconnect={handleWalletDisconnect}
                   connectedWallet={connectedWallet}
                   isModal={true}
@@ -351,7 +322,7 @@ export default function AccessPage() {
                 {/* Token Amount Selection */}
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Number of Tokens
+                    Number of Tokens (1 ADA = 1 Token)
                   </label>
                   <div className="grid grid-cols-4 gap-3 mb-4">
                     {[5, 10, 25, 50].map((amount) => (
@@ -365,7 +336,7 @@ export default function AccessPage() {
                         }`}
                       >
                         <div className="font-semibold">{amount}</div>
-                        <div className="text-xs text-gray-500">{amount} ADA</div>
+                        <div className="text-xs text-gray-500">{paymentUtils.formatAda(amount)}</div>
                       </button>
                     ))}
                   </div>
@@ -407,15 +378,15 @@ export default function AccessPage() {
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
                       <span>Tokens:</span>
-                      <span>{tokenAmount}</span>
+                      <span>{paymentValidation.calculateTokens(tokenAmount)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Cost:</span>
-                      <span>{tokenAmount} ADA</span>
+                      <span>{paymentUtils.formatAda(tokenAmount)}</span>
                     </div>
                     <div className="flex justify-between font-medium">
                       <span>Total:</span>
-                      <span>{tokenAmount} ADA</span>
+                      <span>{paymentUtils.formatAda(paymentValidation.calculateTotalCost(tokenAmount))}</span>
                     </div>
                   </div>
                 </div>
@@ -437,7 +408,7 @@ export default function AccessPage() {
                 <div className="text-center mb-6">
                   <CreditCard className="w-16 h-16 text-blue-600 mx-auto mb-4" />
                   <p className="text-gray-600 mb-4">
-                    Click the button below to send {tokenAmount} ADA to complete your purchase.
+                    Click the button below to send {paymentUtils.formatAda(tokenAmount)} to complete your purchase.
                     Your wallet will prompt you to confirm the transaction.
                   </p>
                 </div>
@@ -447,11 +418,11 @@ export default function AccessPage() {
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <span className="text-gray-600">Amount:</span>
-                        <div className="font-semibold">{tokenAmount} ADA</div>
+                        <div className="font-semibold">{paymentUtils.formatAda(tokenAmount)}</div>
                       </div>
                       <div>
                         <span className="text-gray-600">Tokens:</span>
-                        <div className="font-semibold">{tokenAmount} tokens</div>
+                        <div className="font-semibold">{paymentValidation.calculateTokens(tokenAmount)} tokens</div>
                       </div>
                       <div className="col-span-2">
                         <span className="text-gray-600">Platform Address:</span>
@@ -582,5 +553,14 @@ export default function AccessPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Main component wrapped with WalletProvider
+export default function AccessPage() {
+  return (
+    <WalletProvider>
+      <AccessPageContent />
+    </WalletProvider>
   );
 }
