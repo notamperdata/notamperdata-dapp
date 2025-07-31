@@ -1,4 +1,4 @@
-// src/components/wallet/WalletConnector.tsx
+// src/components/wallet/WalletConnector.tsx - Complete updated file
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -89,36 +89,24 @@ export default function WalletConnector({ onConnect, onDisconnect, connectedWall
       const balance = await connectedWallet.api.getBalance();
       const adaBalance = (parseInt(balance) / 1000000).toFixed(2);
       setWalletBalance(`${adaBalance} ADA`);
-      
-      // Update the connected wallet object with new balance
-      const updatedWallet = {
-        ...connectedWallet,
-        balance: `${adaBalance} ADA`
-      };
-      onConnect(updatedWallet);
     } catch (error) {
       console.warn('Failed to update wallet balance:', error);
     }
   };
 
+  // Load wallets on component mount
   useEffect(() => {
-    // Initial detection
     detectWallets();
-    
-    // Periodic detection for wallet installation
-    const detectionInterval = setInterval(detectWallets, 3000);
-    
-    // Balance update interval for connected wallet
-    let balanceInterval: NodeJS.Timeout;
+  }, []);
+
+  // Update balance when wallet is connected
+  useEffect(() => {
     if (connectedWallet) {
-      updateWalletBalance(); // Update immediately
-      balanceInterval = setInterval(updateWalletBalance, 10000); // Update every 10 seconds
+      updateWalletBalance();
+      // Set up interval to update balance periodically
+      const interval = setInterval(updateWalletBalance, 30000); // Every 30 seconds
+      return () => clearInterval(interval);
     }
-    
-    return () => {
-      clearInterval(detectionInterval);
-      if (balanceInterval) clearInterval(balanceInterval);
-    };
   }, [connectedWallet]);
 
   const connectWallet = async (walletKey: string, walletInfo: WalletInfo) => {
@@ -126,27 +114,21 @@ export default function WalletConnector({ onConnect, onDisconnect, connectedWall
     setError(null);
 
     try {
-      console.log(`Connecting to ${walletInfo.name}...`);
-
       const cardanoWallet = (window as any).cardano?.[walletKey];
+      
       if (!cardanoWallet) {
-        throw new Error(`${walletInfo.name} not found`);
+        throw new Error(`${walletInfo.name} wallet not found`);
       }
 
       // Enable the wallet
       const api = await cardanoWallet.enable();
-      if (!api) {
-        throw new Error(`Failed to enable ${walletInfo.name}`);
-      }
+      
+      // Get wallet details
+      const networkId = await api.getNetworkId();
+      const address = await api.getChangeAddress();
+      const balance = await api.getBalance();
 
-      // Get wallet information
-      const [address, balance, networkId] = await Promise.all([
-        api.getChangeAddress(),
-        api.getBalance().catch(() => '0'),
-        api.getNetworkId().catch(() => 0)
-      ]);
-
-      // Validate network (Preview testnet = 0, Mainnet = 1)
+      // Validate network
       const expectedNetwork = process.env.NEXT_PUBLIC_CARDANO_NETWORK === 'Mainnet' ? 1 : 0;
       if (networkId !== expectedNetwork) {
         const networkName = expectedNetwork === 1 ? 'Mainnet' : 'Preview Testnet';
@@ -323,79 +305,62 @@ export default function WalletConnector({ onConnect, onDisconnect, connectedWall
                 className="flex items-center space-x-4 p-4 border border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {info.icon && (
-                  <div className={`${isModal ? 'w-10 h-10' : 'w-12 h-12'} flex-shrink-0`}>
+                  <div className={`${isModal ? 'w-8 h-8' : 'w-10 h-10'} flex-shrink-0`}>
                     <img 
                       src={info.icon} 
-                      alt={`${info.name} icon`} 
-                      className="w-full h-full object-contain rounded-lg"
-                      onError={(e) => {
-                        // Hide broken images
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
+                      alt={`${info.name} icon`}
+                      className="w-full h-full object-contain"
                     />
                   </div>
                 )}
+                
                 <div className="flex-1 text-left">
-                  <h4 className="font-medium text-gray-900">{info.name}</h4>
-                  <p className="text-sm text-gray-600">
-                    {isConnecting === key ? 'Connecting...' : `Version ${info.version}`}
-                  </p>
+                  <div className="font-medium text-gray-900">
+                    {info.name}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    Version {info.version}
+                  </div>
                 </div>
+                
                 {isConnecting === key && (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                  <div className="flex items-center space-x-2">
+                    <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+                    <span className="text-sm text-blue-600">Connecting...</span>
+                  </div>
                 )}
               </button>
             ))}
           </div>
         </div>
       ) : (
-        /* No Wallets Detected */
         <div className="text-center py-8">
-          <Wallet className={`${isModal ? 'w-12 h-12' : 'w-16 h-16'} text-gray-400 mx-auto mb-4`} />
-          <h3 className={`${isModal ? 'text-base' : 'text-lg'} font-medium text-gray-900 mb-2`}>
-            No Cardano Wallets Detected
-          </h3>
-          <p className="text-gray-600 mb-6">
-            Install a Cardano wallet extension to get started with NoTamperData
+          <Wallet className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Wallets Found</h3>
+          <p className="text-gray-600 mb-4">
+            Please install a Cardano wallet extension to continue
           </p>
-          
-          <div className="text-sm text-gray-500 mb-4">
-            Popular wallets: Nami, Eternl, Lace, Flint, Yoroi
+          <div className="space-y-2">
+            <p className="text-sm text-gray-500">Supported wallets:</p>
+            <div className="flex flex-wrap justify-center gap-2 text-xs text-gray-500">
+              <span>Nami</span>
+              <span>•</span>
+              <span>Eternl</span>
+              <span>•</span>
+              <span>Flint</span>
+              <span>•</span>
+              <span>Typhon</span>
+              <span>•</span>
+              <span>Yoroi</span>
+            </div>
           </div>
-          
           <button
             onClick={detectWallets}
             disabled={isRefreshing}
-            className="flex items-center space-x-2 mx-auto px-4 py-2 text-sm text-blue-600 hover:text-blue-800 disabled:cursor-not-allowed"
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            <span>Check Again</span>
+            {isRefreshing ? 'Checking...' : 'Check Again'}
           </button>
-        </div>
-      )}
-
-      {/* Network Info */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h4 className="font-medium text-blue-900 mb-2">Network Information</h4>
-        <div className="text-sm text-blue-800">
-          <div>
-            <strong>Expected Network:</strong> {process.env.NEXT_PUBLIC_CARDANO_NETWORK || 'Preview Testnet'}
-          </div>
-          <div className="mt-1">
-            Make sure your wallet is connected to the correct network before proceeding.
-          </div>
-        </div>
-      </div>
-
-      {/* Help Section */}
-      {!isModal && (
-        <div className="text-center text-sm text-gray-500">
-          <p>
-            Having trouble connecting? Check our{' '}
-            <a href="/docs/wallet-setup" className="text-blue-600 hover:underline">
-              wallet setup guide
-            </a>
-          </p>
         </div>
       )}
     </div>

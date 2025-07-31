@@ -1,4 +1,4 @@
-// Updated src/app/access/page.tsx
+// src/app/access/page.tsx 
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -125,8 +125,7 @@ function AccessPageContent() {
       }
     } catch (error) {
       console.error('Payment failed:', error);
-      alert(`Payment failed: ${error instanceof Error ? 
-        error.message : 'Unknown error'}`);
+      alert(`Payment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsProcessing(false);
     }
@@ -164,15 +163,15 @@ function AccessPageContent() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Fix for modal auto-close issue: Proper state management with useCallback
+  // FIXED: Modal toggle handler with proper useCallback (removed isModalOpen dependency)
   const handleModalToggle = React.useCallback(() => {
-    console.log('Modal toggle clicked, current state:', isModalOpen);
+    console.log('Modal toggle clicked');
     setIsModalOpen(prev => {
       const newState = !prev;
       console.log('Setting modal state to:', newState);
       return newState;
     });
-  }, [isModalOpen]);
+  }, []); // Empty dependency array - this is the key fix
 
   const handleModalClose = React.useCallback((e?: React.MouseEvent) => {
     if (e) {
@@ -280,9 +279,6 @@ function AccessPageContent() {
           </p>
         </div>
 
-        {/* REMOVED: Progress Steps Section - Hidden from UI as requested */}
-        {/* The steps logic remains in the code but is not displayed to the user */}
-
         {/* Main Content */}
         <div className="max-w-2xl mx-auto">
           <div className="bg-white/70 backdrop-blur-sm rounded-lg shadow-xl border border-gray-200/50 p-6">
@@ -337,64 +333,81 @@ function AccessPageContent() {
 
             {/* Step 2: Configure Purchase */}
             {step === 'configure' && (
-              <div>
-                <div className="text-center mb-6">
+              <div className="space-y-6">
+                <div className="text-center">
                   <CreditCard className="w-16 h-16 text-blue-600 mx-auto mb-4" />
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Configure Purchase</h2>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-4">Configure Your Purchase</h2>
                   <p className="text-gray-700">
-                    Choose the number of API tokens to purchase
+                    Choose how many API tokens you'd like to purchase
                   </p>
                 </div>
 
-                <div className="space-y-6">
-                  {/* Token Amount */}
+                <div className="space-y-4">
+                  {/* Token Amount Selection */}
                   <div>
-                    <label htmlFor="tokenAmount" className="block text-sm font-medium text-gray-800 mb-2">
-                      Number of Tokens
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Number of API Tokens
                     </label>
-                    <input
-                      type="number"
-                      id="tokenAmount"
-                      min="1"
-                      max="1000"
-                      value={tokenAmount}
-                      onChange={(e) => setTokenAmount(Number(e.target.value))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
-                    />
-                    <p className="text-sm text-gray-600 mt-1">
-                      Cost: {tokenAmount} ADA (1 ADA = 1 token)
-                    </p>
+                    <div className="flex items-center space-x-4">
+                      <input
+                        type="number"
+                        value={tokenAmount}
+                        onChange={(e) => setTokenAmount(parseInt(e.target.value) || 0)}
+                        min="1"
+                        max="1000"
+                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-600">
+                        ≈ {paymentValidation.calculateTokens(tokenAmount)} ADA
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Email */}
+                  {/* Email Address */}
                   <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-800 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       Email Address (for API key delivery)
                     </label>
                     <input
                       type="email"
-                      id="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="your@email.com"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
 
-                  {/* Platform Address */}
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                    <h3 className="font-medium text-gray-900 mb-2">Payment Details</h3>
-                    <div className="text-sm text-gray-700 space-y-1">
-                      <div><strong>Recipient:</strong> NoTamperData Platform</div>
-                      <div><strong>Amount:</strong> {tokenAmount} ADA</div>
-                      <div><strong>Tokens:</strong> {tokenAmount} API tokens</div>
-                    </div>
+                  {/* Advanced Options */}
+                  <div>
+                    <button
+                      onClick={() => setShowAdvanced(!showAdvanced)}
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      {showAdvanced ? 'Hide' : 'Show'} Advanced Options
+                    </button>
+                    
+                    {showAdvanced && (
+                      <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                        <div className="text-sm text-gray-600">
+                          <p><strong>Platform Address:</strong> {platformAddress}</p>
+                          <p><strong>Network:</strong> {process.env.NEXT_PUBLIC_CARDANO_NETWORK}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
+                </div>
 
+                <div className="flex space-x-4">
+                  <button
+                    onClick={() => setStep('connect')}
+                    className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-3 px-4 rounded-lg transition-colors"
+                  >
+                    Back
+                  </button>
                   <button
                     onClick={handleProceedToPayment}
-                    disabled={!email || tokenAmount < 1}
-                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+                    disabled={!email || tokenAmount <= 0}
                   >
                     Proceed to Payment
                   </button>
@@ -402,53 +415,54 @@ function AccessPageContent() {
               </div>
             )}
 
-            {/* Step 3: Send Payment */}
+            {/* Step 3: Payment */}
             {step === 'payment' && (
-              <div>
-                <div className="text-center mb-6">
-                  <ExternalLink className="w-16 h-16 text-blue-600 mx-auto mb-4" />
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Send Payment</h2>
+              <div className="space-y-6">
+                <div className="text-center">
+                  <Key className="w-16 h-16 text-blue-600 mx-auto mb-4" />
+                  <h2 className="text-2xl font-bold text-gray-900 mb-4">Complete Payment</h2>
                   <p className="text-gray-700">
-                    Review and confirm your payment to receive API tokens
+                    Review your purchase and send payment
                   </p>
                 </div>
 
-                <div className="space-y-6">
-                  {/* Payment Summary */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h3 className="font-medium text-blue-900 mb-3">Payment Summary</h3>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-blue-800">Tokens:</span>
-                        <span className="font-medium text-blue-900">{tokenAmount}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-blue-800">Cost:</span>
-                        <span className="font-medium text-blue-900">{tokenAmount} ADA</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-blue-800">Email:</span>
-                        <span className="font-medium text-blue-900">{email}</span>
-                      </div>
+                {/* Payment Summary */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <h3 className="font-medium text-gray-900 mb-3">Order Summary</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>API Tokens:</span>
+                      <span>{tokenAmount}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Price per Token:</span>
+                      <span>{paymentValidation.calculateTokens(1)} ADA</span>
+                    </div>
+                    <div className="flex justify-between font-medium">
+                      <span>Total:</span>
+                      <span>{paymentValidation.calculateTokens(tokenAmount)} ADA</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Email:</span>
+                      <span>{email}</span>
                     </div>
                   </div>
+                </div>
 
+                <div className="flex space-x-4">
+                  <button
+                    onClick={() => setStep('configure')}
+                    className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-3 px-4 rounded-lg transition-colors"
+                    disabled={isProcessing}
+                  >
+                    Back
+                  </button>
                   <button
                     onClick={handleSendPayment}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-colors disabled:opacity-50"
                     disabled={isProcessing}
-                    className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2"
                   >
-                    {isProcessing ? (
-                      <>
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                        <span>Processing Payment...</span>
-                      </>
-                    ) : (
-                      <>
-                        <ExternalLink className="w-5 h-5" />
-                        <span>Send Payment</span>
-                      </>
-                    )}
+                    {isProcessing ? 'Processing...' : 'Send Payment'}
                   </button>
                 </div>
               </div>
@@ -456,14 +470,12 @@ function AccessPageContent() {
 
             {/* Step 4: Complete */}
             {step === 'complete' && generatedApiKey && (
-              <div>
-                <div className="text-center mb-6">
-                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Key className="w-8 h-8 text-green-600" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">API Key Generated!</h2>
+              <div className="space-y-6">
+                <div className="text-center">
+                  <Check className="w-16 h-16 text-green-600 mx-auto mb-4" />
+                  <h2 className="text-2xl font-bold text-gray-900 mb-4">Payment Complete!</h2>
                   <p className="text-gray-700">
-                    Your payment was successful. Here's your API key:
+                    Here's your API key:
                   </p>
                 </div>
 

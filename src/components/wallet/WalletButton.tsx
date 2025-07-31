@@ -1,8 +1,8 @@
-// Updated src/components/wallet/WalletButton.tsx
+// src/components/wallet/WalletButton.tsx - Updated with better event handling
 'use client';
 
 import React from 'react';
-import { Wallet, ChevronDown, LogOut } from 'lucide-react';
+import { Wallet, ChevronDown } from 'lucide-react';
 
 interface WalletAPI {
   getBalance(): Promise<string>;
@@ -45,12 +45,16 @@ export default function WalletButton({ connectedWallet, onToggleModal, onDisconn
     return `${address.substring(0, 8)}...${address.substring(address.length - 8)}`;
   };
 
-  // Handle button click with proper event handling - use useCallback to prevent re-renders
+  // Improved button click handler with proper event handling and slight delay
   const handleButtonClick = React.useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('WalletButton clicked');
-    onToggleModal();
+    
+    // Add a small delay to prevent rapid clicks and ensure proper state handling
+    setTimeout(() => {
+      console.log('WalletButton clicked');
+      onToggleModal();
+    }, 0);
   }, [onToggleModal]);
 
   if (connectedWallet) {
@@ -58,6 +62,7 @@ export default function WalletButton({ connectedWallet, onToggleModal, onDisconn
       <div className="relative">
         <button
           onClick={handleButtonClick}
+          type="button"
           className="flex items-center space-x-3 bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 border border-green-300 hover:border-green-400 rounded-lg px-4 py-2 transition-all duration-200 group shadow-sm hover:shadow-md"
         >
           <div className="w-8 h-8 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full flex items-center justify-center">
@@ -91,6 +96,7 @@ export default function WalletButton({ connectedWallet, onToggleModal, onDisconn
   return (
     <button
       onClick={handleButtonClick}
+      type="button"
       className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg px-4 py-2 transition-all duration-200 font-medium shadow-md hover:shadow-lg transform hover:scale-105"
     >
       <Wallet className="w-4 h-4" />
