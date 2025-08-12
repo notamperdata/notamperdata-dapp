@@ -1,4 +1,4 @@
-// src/components/wallet/WalletConnector.tsx - Complete updated file
+// src/components/wallet/WalletConnector.tsx 
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -81,13 +81,33 @@ export default function WalletConnector({ onConnect, onDisconnect, connectedWall
     setIsRefreshing(false);
   };
 
-  // Update wallet balance periodically
+  // Update wallet balance periodically - FIXED VERSION
   const updateWalletBalance = async () => {
     if (!connectedWallet?.api) return;
 
     try {
-      const balance = await connectedWallet.api.getBalance();
-      const adaBalance = (parseInt(balance) / 1000000).toFixed(2);
+      const rawBalance = await connectedWallet.api.getBalance();
+      console.log('Raw balance from wallet:', rawBalance, 'Type:', typeof rawBalance);
+      
+      // FIXED: Handle different balance formats that wallets might return
+      let balance: string;
+      if (typeof rawBalance === 'string') {
+        balance = rawBalance;
+      } else if (typeof rawBalance === 'object' && rawBalance !== null) {
+        // Some wallets return balance as an object with lovelace property
+        const balanceObj = rawBalance as any;
+        balance = balanceObj.lovelace || balanceObj.ada || balanceObj.coin || String(rawBalance) || '0';
+      } else if (Array.isArray(rawBalance) && rawBalance.length > 0) {
+        // Some wallets return an array of UTXOs
+        const utxo = rawBalance[0] as any;
+        balance = utxo?.amount || utxo?.value || '0';
+      } else {
+        balance = String(rawBalance || '0');
+      }
+      
+      // FIXED: Better parsing of lovelace amount
+      const lovelaceAmount = parseInt(String(balance)) || 0;
+      const adaBalance = (lovelaceAmount / 1000000).toFixed(2);
       setWalletBalance(`${adaBalance} ADA`);
     } catch (error) {
       console.warn('Failed to update wallet balance:', error);
@@ -126,17 +146,51 @@ export default function WalletConnector({ onConnect, onDisconnect, connectedWall
       // Get wallet details
       const networkId = await api.getNetworkId();
       const address = await api.getChangeAddress();
-      const balance = await api.getBalance();
+      
+      // FIXED: Better balance handling with multiple fallback strategies
+      let balance: string;
+      try {
+        const rawBalance = await api.getBalance();
+        console.log('Raw balance from wallet:', rawBalance, 'Type:', typeof rawBalance);
+        
+        // Handle different balance formats that different wallets might return
+        if (typeof rawBalance === 'string') {
+          balance = rawBalance;
+        } else if (typeof rawBalance === 'object' && rawBalance !== null) {
+          // Try different possible properties
+          const balanceObj = rawBalance as any;
+          balance = balanceObj.lovelace || balanceObj.ada || balanceObj.coin || '0';
+        } else if (Array.isArray(rawBalance)) {
+          // Some wallets might return UTXO array
+          const totalLovelace = rawBalance.reduce((sum: number, utxo: any) => {
+            const amount = utxo.amount || utxo.value || 0;
+            return sum + (typeof amount === 'string' ? parseInt(amount) : Number(amount));
+          }, 0);
+          balance = totalLovelace.toString();
+        } else {
+          balance = String(rawBalance || '0');
+        }
+      } catch (balanceError) {
+        console.warn('Failed to get balance, using 0:', balanceError);
+        balance = '0';
+      }
 
-      // Validate network
+      // Validate network - FIXED: Use consistent environment variable name
       const expectedNetwork = process.env.NEXT_PUBLIC_CARDANO_NETWORK === 'Mainnet' ? 1 : 0;
       if (networkId !== expectedNetwork) {
         const networkName = expectedNetwork === 1 ? 'Mainnet' : 'Preview Testnet';
         throw new Error(`Please switch your wallet to ${networkName}`);
       }
 
-      // Convert balance from lovelace to ADA
-      const adaBalance = (parseInt(balance) / 1000000).toFixed(2);
+      // Convert balance from lovelace to ADA - 
+      let adaBalance: string;
+      try {
+        const lovelaceAmount = parseInt(String(balance)) || 0;
+        adaBalance = (lovelaceAmount / 1000000).toFixed(2);
+      } catch (conversionError) {
+        console.warn('Balance conversion failed, using 0:', conversionError);
+        adaBalance = '0.00';
+      }
 
       const connectedWalletData: ConnectedWallet = {
         name: walletInfo.name,
@@ -305,29 +359,28 @@ export default function WalletConnector({ onConnect, onDisconnect, connectedWall
                 className="flex items-center space-x-4 p-4 border border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {info.icon && (
-                  <div className={`${isModal ? 'w-8 h-8' : 'w-10 h-10'} flex-shrink-0`}>
+                  <div className={`${isModal ? 'w-8 h-8' : 'w-10 h-10'} flex items-center justify-center`}>
                     <img 
                       src={info.icon} 
                       alt={`${info.name} icon`}
-                      className="w-full h-full object-contain"
+                      className={`${isModal ? 'w-6 h-6' : 'w-8 h-8'} object-contain`}
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                      }}
                     />
                   </div>
                 )}
                 
                 <div className="flex-1 text-left">
-                  <div className="font-medium text-gray-900">
-                    {info.name}
-                  </div>
+                  <div className="font-medium text-gray-900">{info.name}</div>
                   <div className="text-sm text-gray-500">
-                    Version {info.version}
+                    Version: {info.version} {info.apiVersion && `• API: ${info.apiVersion}`}
                   </div>
                 </div>
                 
                 {isConnecting === key && (
-                  <div className="flex items-center space-x-2">
-                    <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
-                    <span className="text-sm text-blue-600">Connecting...</span>
-                  </div>
+                  <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
                 )}
               </button>
             ))}
@@ -335,31 +388,24 @@ export default function WalletConnector({ onConnect, onDisconnect, connectedWall
         </div>
       ) : (
         <div className="text-center py-8">
-          <Wallet className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Wallets Found</h3>
+          <Wallet className={`${isModal ? 'w-12 h-12' : 'w-16 h-16'} text-gray-400 mx-auto mb-4`} />
+          <h3 className={`${isModal ? 'text-base' : 'text-lg'} font-medium text-gray-900 mb-2`}>
+            No Cardano Wallets Found
+          </h3>
           <p className="text-gray-600 mb-4">
             Please install a Cardano wallet extension to continue
           </p>
-          <div className="space-y-2">
-            <p className="text-sm text-gray-500">Supported wallets:</p>
-            <div className="flex flex-wrap justify-center gap-2 text-xs text-gray-500">
-              <span>Nami</span>
-              <span>•</span>
-              <span>Eternl</span>
-              <span>•</span>
-              <span>Flint</span>
-              <span>•</span>
-              <span>Typhon</span>
-              <span>•</span>
-              <span>Yoroi</span>
-            </div>
+          <div className="text-sm text-gray-500 space-y-1">
+            <p>Supported wallets include:</p>
+            <p>Nami, Eternl, Flint, Typhon, Yoroi, Lace, and more</p>
           </div>
           <button
             onClick={detectWallets}
             disabled={isRefreshing}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="mt-4 inline-flex items-center space-x-2 px-4 py-2 text-sm bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:cursor-not-allowed"
           >
-            {isRefreshing ? 'Checking...' : 'Check Again'}
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>Check Again</span>
           </button>
         </div>
       )}

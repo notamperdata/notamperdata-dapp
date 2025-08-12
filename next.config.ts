@@ -8,6 +8,9 @@ const nextConfig: NextConfig = {
     PLATFORM_WALLET_MNEMONIC: process.env.PLATFORM_WALLET_MNEMONIC,
     CONTRACT_ADDRESS: process.env.CONTRACT_ADDRESS,
     CARDANO_NETWORK: process.env.CARDANO_NETWORK,
+    // Add client-side accessible network variable
+    NEXT_PUBLIC_CARDANO_NETWORK: process.env.CARDANO_NETWORK,
+    NEXT_PUBLIC_BLOCKFROST_PROJECT_ID: process.env.BLOCKFROST_PROJECT_ID,
   },
 
   // Enable experimental features for WASM support
@@ -69,6 +72,9 @@ const nextConfig: NextConfig = {
         'process.env.PLATFORM_WALLET_MNEMONIC': JSON.stringify(process.env.PLATFORM_WALLET_MNEMONIC),
         'process.env.CONTRACT_ADDRESS': JSON.stringify(process.env.CONTRACT_ADDRESS),
         'process.env.CARDANO_NETWORK': JSON.stringify(process.env.CARDANO_NETWORK),
+        // Add client-side accessible environment variables
+        'process.env.NEXT_PUBLIC_CARDANO_NETWORK': JSON.stringify(process.env.CARDANO_NETWORK),
+        'process.env.NEXT_PUBLIC_BLOCKFROST_PROJECT_ID': JSON.stringify(process.env.BLOCKFROST_PROJECT_ID),
       })
     );
 

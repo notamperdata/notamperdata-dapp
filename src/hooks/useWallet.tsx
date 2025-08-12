@@ -1,25 +1,15 @@
-// src/hooks/useWallet.ts
+// src/hooks/useWallet.tsx
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-interface WalletAPI {
-  getBalance(): Promise<string>;
-  getChangeAddress(): Promise<string>;
-  getNetworkId(): Promise<number>;
-  signTx(tx: string, partialSign?: boolean): Promise<string>;
-  submitTx(tx: string): Promise<string>;
-  getUtxos(amount?: string): Promise<string[]>;
-  enable(): Promise<WalletAPI>;
-  isEnabled(): Promise<boolean>;
-}
-
-interface ConnectedWallet {
+// Wallet interfaces
+export interface ConnectedWallet {
   name: string;
-  api: WalletAPI;
+  api: any;
   address: string;
-  balance?: string;
-  networkId?: number;
+  balance: string;
+  networkId: number;
 }
 
 interface WalletContextType {
@@ -32,89 +22,92 @@ interface WalletContextType {
   clearError: () => void;
 }
 
+// Network configuration utility
+const getNetworkConfig = () => {
+  const network = process.env.NEXT_PUBLIC_CARDANO_NETWORK || 'Preview';
+  return {
+    network,
+    expectedNetworkId: network === 'Mainnet' ? 1 : 0,
+    networkName: network === 'Mainnet' ? 'Mainnet' : 'Preview Testnet'
+  };
+};
+
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-// Local storage keys
-const STORAGE_KEY = 'notamperdata_wallet';
-const STORAGE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
+const STORAGE_KEY = 'notamperdata_connected_wallet';
 
-interface WalletStorage {
-  walletKey: string;
-  walletName: string;
-  address: string;
-  timestamp: number;
+interface WalletProviderProps {
+  children: ReactNode;
 }
 
-export function WalletProvider({ children }: { children: ReactNode }) {
+// Utility functions for local storage
+const saveWalletToStorage = (walletKey: string, wallet: ConnectedWallet) => {
+  try {
+    const walletData = {
+      walletKey,
+      name: wallet.name,
+      address: wallet.address,
+      balance: wallet.balance,
+      networkId: wallet.networkId,
+      timestamp: Date.now()
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(walletData));
+  } catch (error) {
+    console.warn('Failed to save wallet to storage:', error);
+  }
+};
+
+const loadWalletFromStorage = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const walletData = JSON.parse(stored);
+      // Check if stored data is less than 24 hours old
+      const isRecent = Date.now() - walletData.timestamp < 24 * 60 * 60 * 1000;
+      if (isRecent) {
+        return walletData;
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to load wallet from storage:', error);
+    localStorage.removeItem(STORAGE_KEY);
+  }
+  return null;
+};
+
+export function WalletProvider({ children }: WalletProviderProps) {
   const [connectedWallet, setConnectedWallet] = useState<ConnectedWallet | null>(null);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load wallet from storage on mount
+  // Try to restore wallet connection on mount
   useEffect(() => {
-    loadWalletFromStorage();
-  }, []);
-
-  // Set up balance update interval
-  useEffect(() => {
-    if (!connectedWallet) return;
-
-    // Update balance immediately
-    updateBalance();
-
-    // Set up periodic balance updates
-    const interval = setInterval(updateBalance, 10000); // Update every 10 seconds
-
-    return () => clearInterval(interval);
-  }, [connectedWallet]);
-
-  const loadWalletFromStorage = async () => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (!stored) return;
-
-      const walletData: WalletStorage = JSON.parse(stored);
-      const now = Date.now();
-
-      // Check if stored data is expired
-      if (now - walletData.timestamp > STORAGE_EXPIRY) {
-        localStorage.removeItem(STORAGE_KEY);
-        return;
-      }
-
-      // Check if wallet is still available
-      if (typeof window !== 'undefined' && (window as any).cardano) {
-        const cardanoWallet = (window as any).cardano[walletData.walletKey];
-        if (cardanoWallet) {
-          // Try to reconnect
-          await connectWallet(walletData.walletKey, false); // Don't store again
+    const restoreWallet = async () => {
+      const storedWallet = loadWalletFromStorage();
+      if (storedWallet && typeof window !== 'undefined') {
+        try {
+          console.log('Attempting to restore wallet connection:', storedWallet.name);
+          await connectWallet(storedWallet.walletKey, false);
+        } catch (error) {
+          console.log('Failed to restore wallet connection:', error);
+          localStorage.removeItem(STORAGE_KEY);
         }
       }
-    } catch (error) {
-      console.warn('Failed to load wallet from storage:', error);
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  };
+    };
 
-  const saveWalletToStorage = (walletKey: string, wallet: ConnectedWallet) => {
-    try {
-      const walletData: WalletStorage = {
-        walletKey,
-        walletName: wallet.name,
-        address: wallet.address,
-        timestamp: Date.now()
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(walletData));
-    } catch (error) {
-      console.warn('Failed to save wallet to storage:', error);
-    }
-  };
+    restoreWallet();
+  }, []);
 
   const connectWallet = async (walletKey: string, shouldStore: boolean = true) => {
     setIsConnecting(true);
     setError(null);
 
     try {
+      console.log(`Attempting to connect to wallet: ${walletKey}`);
+      
+      // Check if wallet exists
       const cardanoWallet = (window as any).cardano?.[walletKey];
       if (!cardanoWallet) {
         throw new Error('Wallet not found');
@@ -126,22 +119,45 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         throw new Error('Failed to enable wallet');
       }
 
-      // Get wallet information
-      const [address, balance, networkId] = await Promise.all([
+      console.log('Wallet API enabled successfully');
+
+      // Get wallet information with improved error handling
+      const [address, rawBalance, networkId] = await Promise.all([
         api.getChangeAddress(),
-        api.getBalance().catch(() => '0'),
-        api.getNetworkId().catch(() => 0)
+        api.getBalance().catch((err:any) => {
+          console.warn('Failed to get balance:', err);
+          return '0';
+        }),
+        api.getNetworkId().catch((err:any) => {
+          console.warn('Failed to get network ID:', err);
+          return 0;
+        })
       ]);
 
-      // Validate network
-      const expectedNetwork = process.env.NEXT_PUBLIC_CARDANO_NETWORK === 'Mainnet' ? 1 : 0;
-      if (networkId !== expectedNetwork) {
-        const networkName = expectedNetwork === 1 ? 'Mainnet' : 'Preview Testnet';
+      console.log('Wallet info retrieved:', {
+        address: address?.substring(0, 20) + '...',
+        rawBalance,
+        networkId
+      });
+
+      // Validate network using updated configuration
+      const { expectedNetworkId, networkName } = getNetworkConfig();
+      if (networkId !== expectedNetworkId) {
         throw new Error(`Please switch your wallet to ${networkName}`);
       }
 
-      // Convert balance from lovelace to ADA
-      const adaBalance = (parseInt(balance) / 1000000).toFixed(2);
+      // Handle different balance formats and convert from lovelace to ADA
+      let balance: string;
+      if (typeof rawBalance === 'string') {
+        balance = rawBalance;
+      } else if (typeof rawBalance === 'object' && rawBalance !== null) {
+        balance = rawBalance.lovelace || rawBalance.ada || '0';
+      } else {
+        balance = '0';
+      }
+
+      const lovelaceAmount = parseInt(balance) || 0;
+      const adaBalance = (lovelaceAmount / 1000000).toFixed(2);
 
       const wallet: ConnectedWallet = {
         name: cardanoWallet.name || walletKey,
@@ -158,7 +174,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         saveWalletToStorage(walletKey, wallet);
       }
 
-      console.log('Wallet connected successfully:', wallet.name);
+      console.log('Wallet connected successfully:', {
+        name: wallet.name,
+        balance: wallet.balance,
+        networkId
+      });
 
     } catch (error) {
       console.error('Failed to connect wallet:', error);
@@ -192,9 +212,25 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     if (!connectedWallet?.api) return;
 
     try {
-      const balance = await connectedWallet.api.getBalance();
-      const adaBalance = (parseInt(balance) / 1000000).toFixed(2);
+      console.log('Updating wallet balance...');
+      const rawBalance = await connectedWallet.api.getBalance();
+      console.log('New raw balance:', rawBalance);
+      
+      // Handle different balance formats
+      let balance: string;
+      if (typeof rawBalance === 'string') {
+        balance = rawBalance;
+      } else if (typeof rawBalance === 'object' && rawBalance !== null) {
+        balance = rawBalance.lovelace || rawBalance.ada || '0';
+      } else {
+        balance = '0';
+      }
+      
+      const lovelaceAmount = parseInt(balance) || 0;
+      const adaBalance = (lovelaceAmount / 1000000).toFixed(2);
       const newBalance = `${adaBalance} ADA`;
+
+      console.log('Updated balance:', newBalance);
 
       setConnectedWallet(prev => prev ? {
         ...prev,
@@ -203,6 +239,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     } catch (error) {
       console.warn('Failed to update wallet balance:', error);
+      // Don't throw error, just log warning
     }
   };
 
@@ -284,8 +321,8 @@ export const walletUtils = {
    * Validate network compatibility
    */
   isValidNetwork: (networkId: number): boolean => {
-    const expectedNetwork = process.env.NEXT_PUBLIC_CARDANO_NETWORK === 'Mainnet' ? 1 : 0;
-    return networkId === expectedNetwork;
+    const { expectedNetworkId } = getNetworkConfig();
+    return networkId === expectedNetworkId;
   },
 
   /**
@@ -312,26 +349,33 @@ export const walletUtils = {
    */
   detectWallets: (): Array<{ key: string; name: string; icon?: string }> => {
     const wallets: Array<{ key: string; name: string; icon?: string }> = [];
+    
+    if (typeof window !== 'undefined' && window.cardano) {
+      const knownWallets = [
+        { key: 'nami', name: 'Nami' },
+        { key: 'eternl', name: 'Eternl' },
+        { key: 'flint', name: 'Flint' },
+        { key: 'typhon', name: 'Typhon' },
+        { key: 'yoroi', name: 'Yoroi' },
+        { key: 'gerowallet', name: 'GeroWallet' },
+        { key: 'cardwallet', name: 'CardWallet' },
+        { key: 'nufi', name: 'NuFi' },
+        { key: 'lace', name: 'Lace' },
+        { key: 'begin', name: 'Begin' }
+      ];
 
-    if (typeof window !== 'undefined' && (window as any).cardano) {
-      const cardano = (window as any).cardano;
-      
-      for (const walletKey of Object.keys(cardano)) {
-        try {
-          const wallet = cardano[walletKey];
-          if (wallet && typeof wallet === 'object' && (wallet.name || wallet.icon)) {
-            wallets.push({
-              key: walletKey,
-              name: wallet.name || walletKey,
-              icon: wallet.icon
-            });
-          }
-        } catch (error) {
-          console.warn(`Error detecting wallet ${walletKey}:`, error);
+      knownWallets.forEach(wallet => {
+        if (window.cardano[wallet.key]) {
+          wallets.push(wallet);
         }
-      }
+      });
     }
-
+    
     return wallets;
-  }
+  },
+
+  /**
+   * Get current network configuration
+   */
+  getNetworkConfig: () => getNetworkConfig()
 };
