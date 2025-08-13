@@ -10,15 +10,17 @@ export const PAYMENT_CONSTANTS = {
 } as const;
 
 // Platform wallet addresses by network
+// These can be overridden by environment variables if needed
 export const PLATFORM_ADDRESSES = {
   Preview: process.env.NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_PREVIEW || 'addr_test1wqg448fq8u4ry04dtf3jsxqhw0avejz887ze5x0mtgpgw9gzzhue3',
   Preprod: process.env.NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_PREPROD || 'addr_test1wqg448fq8u4ry04dtf3jsxqhw0avejz887ze5x0mtgpgw9gzzhue3',
   Mainnet: process.env.NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_MAINNET || 'addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3jcu5d8ps7zex2k2xt3uqxgjqnnj83ws8lhrn493x5cdqw2gq4vt'
 } as const;
 
-// Network configuration
+// Network types
 export type NetworkType = 'Preview' | 'Preprod' | 'Mainnet';
 
+// Network configuration with network ID mapping
 export const NETWORK_CONFIG = {
   Preview: {
     name: 'Preview Testnet',
@@ -37,6 +39,39 @@ export const NETWORK_CONFIG = {
   }
 } as const;
 
+/**
+ * Get network type from network ID
+ * Network ID 1 = Mainnet, 0 = Testnet (Preview/Preprod)
+ */
+export const getNetworkTypeFromId = (networkId: number): NetworkType => {
+  if (networkId === 1) {
+    return 'Mainnet';
+  }
+  // Default to Preview for testnet, but this could be made configurable
+  // In a production app, you might want to detect the specific testnet
+  return 'Preview';
+};
+
+/**
+ * Get network info from network ID
+ */
+export const getNetworkInfoFromId = (networkId: number): {
+  type: NetworkType;
+  name: string;
+  isMainnet: boolean;
+  blockfrostUrl: string;
+} => {
+  const networkType = getNetworkTypeFromId(networkId);
+  const config = NETWORK_CONFIG[networkType];
+  
+  return {
+    type: networkType,
+    name: config.name,
+    isMainnet: networkId === 1,
+    blockfrostUrl: config.blockfrostUrl
+  };
+};
+
 // Payment validation functions
 export const paymentValidation = {
   /**
@@ -54,7 +89,8 @@ export const paymentValidation = {
    */
   isValidAddress: (address: string): boolean => {
     // Basic validation for Cardano addresses
-    return address.startsWith('addr_test') || address.startsWith('addr');
+    // Mainnet addresses start with 'addr1', testnet with 'addr_test1'
+    return address.startsWith('addr_test1') || address.startsWith('addr1');
   },
 
   /**
@@ -82,17 +118,25 @@ export const paymentValidation = {
 
   /**
    * Validate network compatibility
+   * Accepts network ID directly instead of NetworkType
    */
-  isValidNetwork: (networkId: number, expectedNetwork: NetworkType): boolean => {
-    return networkId === NETWORK_CONFIG[expectedNetwork].networkId;
+  isValidNetwork: (networkId: number, expectedNetworkId: number): boolean => {
+    return networkId === expectedNetworkId;
+  },
+
+  /**
+   * Check if network is mainnet
+   */
+  isMainnet: (networkId: number): boolean => {
+    return networkId === 1;
   },
 
   /**
    * Get network name from network ID
    */
   getNetworkName: (networkId: number): string => {
-    const network = Object.values(NETWORK_CONFIG).find(n => n.networkId === networkId);
-    return network?.name || 'Unknown Network';
+    const networkInfo = getNetworkInfoFromId(networkId);
+    return networkInfo.name;
   }
 };
 
@@ -103,7 +147,8 @@ export const transactionMetadata = {
    */
   createPaymentMetadata: (
     amount: number, 
-    email?: string, 
+    email?: string,
+    networkId?: number,
     customData?: Record<string, any>
   ): Record<string, any> => {
     return {
@@ -113,6 +158,7 @@ export const transactionMetadata = {
         tokens: paymentValidation.calculateTokens(amount),
         timestamp: Date.now(),
         version: '1.0',
+        ...(networkId !== undefined && { networkId }),
         ...(email && { email }),
         ...customData
       }
@@ -128,6 +174,7 @@ export const transactionMetadata = {
     tokens?: number;
     timestamp?: number;
     email?: string;
+    networkId?: number;
   } | null => {
     try {
       const paymentData = metadata?.[PAYMENT_CONSTANTS.METADATA_LABEL];
@@ -138,7 +185,8 @@ export const transactionMetadata = {
         amount: paymentData.amount,
         tokens: paymentData.tokens,
         timestamp: paymentData.timestamp,
-        email: paymentData.email
+        email: paymentData.email,
+        networkId: paymentData.networkId
       };
     } catch (error) {
       console.warn('Failed to parse payment metadata:', error);
@@ -171,19 +219,27 @@ export const paymentUtils = {
   },
 
   /**
-   * Get platform address for current network
+   * Get platform address for given network ID
+   * Now accepts network ID instead of optional NetworkType
    */
-  getPlatformAddress: (network?: NetworkType): string => {
-    const currentNetwork = network || (process.env.NEXT_PUBLIC_CARDANO_NETWORK as NetworkType) || 'Preview';
-    return PLATFORM_ADDRESSES[currentNetwork];
+  getPlatformAddress: (networkId: number): string => {
+    const networkType = getNetworkTypeFromId(networkId);
+    return PLATFORM_ADDRESSES[networkType];
   },
 
   /**
-   * Get blockfrost URL for current network
+   * Get platform address by network type (legacy support)
    */
-  getBlockfrostUrl: (network?: NetworkType): string => {
-    const currentNetwork = network || (process.env.NEXT_PUBLIC_CARDANO_NETWORK as NetworkType) || 'Preview';
-    return NETWORK_CONFIG[currentNetwork].blockfrostUrl;
+  getPlatformAddressByType: (networkType: NetworkType): string => {
+    return PLATFORM_ADDRESSES[networkType];
+  },
+
+  /**
+   * Get blockfrost URL for given network ID
+   */
+  getBlockfrostUrl: (networkId: number): string => {
+    const networkInfo = getNetworkInfoFromId(networkId);
+    return networkInfo.blockfrostUrl;
   },
 
   /**
@@ -200,5 +256,44 @@ export const paymentUtils = {
    */
   isValidTxHash: (txHash: string): boolean => {
     return /^[a-fA-F0-9]{64}$/.test(txHash);
+  },
+
+  /**
+   * Determine if address matches network
+   */
+  isAddressForNetwork: (address: string, networkId: number): boolean => {
+    const isMainnet = networkId === 1;
+    const isMainnetAddress = address.startsWith('addr1');
+    const isTestnetAddress = address.startsWith('addr_test1');
+    
+    return (isMainnet && isMainnetAddress) || (!isMainnet && isTestnetAddress);
+  },
+
+  /**
+   * Get appropriate contract address based on network ID
+   * This can be extended to support different contracts per network
+   */
+  getContractAddress: (networkId: number): string => {
+    // You can store different contract addresses per network
+    const contractAddresses: Record<NetworkType, string> = {
+      Preview: process.env.CONTRACT_ADDRESS_PREVIEW || process.env.CONTRACT_ADDRESS || '',
+      Preprod: process.env.CONTRACT_ADDRESS_PREPROD || process.env.CONTRACT_ADDRESS || '',
+      Mainnet: process.env.CONTRACT_ADDRESS_MAINNET || process.env.CONTRACT_ADDRESS || ''
+    };
+    
+    const networkType = getNetworkTypeFromId(networkId);
+    return contractAddresses[networkType];
+  }
+};
+
+// Export network detection utilities for use in other modules
+export const networkUtils = {
+  getNetworkTypeFromId,
+  getNetworkInfoFromId,
+  isMainnet: (networkId: number) => networkId === 1,
+  isTestnet: (networkId: number) => networkId === 0,
+  getNetworkDisplayName: (networkId: number) => {
+    const info = getNetworkInfoFromId(networkId);
+    return info.name;
   }
 };

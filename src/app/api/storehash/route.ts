@@ -6,61 +6,84 @@ import {
   LucidEvolution
 } from '@lucid-evolution/lucid';
 import { 
-  loadContractConfig,
+  initializeLucid,
+  getContractAddress,
+  getNetworkTypeFromId,
   networkUrls,
-  getNetworkType,
+  getLucidNetworkType,
   loadNoTamperDataValidator,
   NoTamperData_CONSTANTS
 } from '@/lib/contract';
 import { ApiKeyManager } from '@/lib/ApiKeyManager';
 import dbConnect from '@/lib/mongodb';
 
-// Initialize Lucid using the contract utilities
-async function initLucid(): Promise<LucidEvolution> {
-  const config = loadContractConfig();
-  
-  console.log('🔧 Environment variables loaded:', {
-    hasBlockfrostId: !!config.blockfrostProjectId,
-    hasWalletMnemonic: !!config.platformWalletMnemonic,
-    hasContractAddress: !!config.contractAddress,
-    network: config.network
-  });
+// Initialize Lucid with dynamic network support
+async function initLucidForNetwork(networkId: number): Promise<LucidEvolution> {
+  try {
+    // Initialize with the provided network ID
+    const lucid = await initializeLucid(
+      networkId,
+      process.env.BLOCKFROST_PROJECT_ID,
+      process.env.PLATFORM_WALLET_MNEMONIC
+    );
+    
+    console.log('✅ Lucid initialized for network ID:', networkId);
+    return lucid;
+  } catch (error) {
+    console.error('Failed to initialize Lucid:', error);
+    throw error;
+  }
+}
 
-  const network = getNetworkType(config.network);
-  const blockfrostUrl = networkUrls[config.network];
-
-  const lucid = await Lucid(
-    new Blockfrost(blockfrostUrl, config.blockfrostProjectId),
-    network
-  );
-
-  // Select wallet from mnemonic
-  lucid.selectWallet.fromSeed(config.platformWalletMnemonic);
-
-  return lucid;
+// Interface for request body
+interface StoreHashRequest {
+  hash: string;
+  formId: string;
+  responseId: string;
+  apiKey: string;
+  networkId?: number; // Optional, defaults to testnet if not provided
 }
 
 // Interface for metadata
 interface StoreMetadata {
   formId: string;
   responseId: string;
+  networkId: number;
 }
 
 // Store hash on blockchain with metadata
-async function storeHashOnBlockchain(hash: string, metadata: StoreMetadata): Promise<string> {
+async function storeHashOnBlockchain(
+  hash: string, 
+  metadata: StoreMetadata
+): Promise<string> {
   try {
-    console.log('🚀 Storing hash on blockchain:', hash);
+    console.log('🚀 Storing hash on blockchain:', {
+      hash,
+      networkId: metadata.networkId,
+      formId: metadata.formId
+    });
     
-    // Initialize Lucid
-    const lucid = await initLucid();
+    // Initialize Lucid with the specified network
+    const lucid = await initLucidForNetwork(metadata.networkId);
     
-    // Load validator using the embedded data (for future use)
-    const validator = loadNoTamperDataValidator();
-    console.log('📜 Validator loaded, hash:', validator.hash);
+    // Load validator (for future use if needed)
+    const networkType = getNetworkTypeFromId(metadata.networkId);
+    const validator = loadNoTamperDataValidator(networkType);
+    console.log('📜 Validator loaded for network:', networkType, 'hash:', validator.hash);
     
-    // Get contract address from environment
-    const config = loadContractConfig();
-    console.log('📋 Using contract address:', config.contractAddress);
+    // Get contract address for the specific network
+    const contractAddress = getContractAddress(metadata.networkId);
+    console.log('📋 Using contract address:', contractAddress);
+    
+    // Validate that the contract address matches the network
+    const isMainnet = metadata.networkId === 1;
+    const isValidAddress = isMainnet 
+      ? contractAddress.startsWith('addr1')
+      : contractAddress.startsWith('addr_test1');
+    
+    if (!isValidAddress) {
+      throw new Error(`Contract address ${contractAddress} doesn't match network ID ${metadata.networkId}`);
+    }
     
     // Create transaction metadata according to specification (label 8434)
     const txMetadata = {
@@ -68,6 +91,7 @@ async function storeHashOnBlockchain(hash: string, metadata: StoreMetadata): Pro
       form_id: metadata.formId,
       response_id: metadata.responseId,
       timestamp: Date.now(),
+      network_id: metadata.networkId,
       version: "1.0"
     };
     
@@ -77,7 +101,7 @@ async function storeHashOnBlockchain(hash: string, metadata: StoreMetadata): Pro
     const tx = lucid
       .newTx()
       .pay.ToAddress(
-        config.contractAddress,
+        contractAddress,
         { lovelace: NoTamperData_CONSTANTS.CONTRACT_UTXO_AMOUNT }
       )
       .attachMetadata(NoTamperData_CONSTANTS.METADATA_LABEL, txMetadata);
@@ -94,214 +118,234 @@ async function storeHashOnBlockchain(hash: string, metadata: StoreMetadata): Pro
     const txHash = await signedTx.submit();
     
     console.log('✅ Hash stored successfully on blockchain!');
-    console.log('🔗 Transaction hash:', txHash);
+    console.log('📋 Transaction hash:', txHash);
     
     return txHash;
-    
   } catch (error) {
-    console.error('💥 Error storing hash on blockchain:', error);
+    console.error('❌ Failed to store hash on blockchain:', error);
     throw error;
   }
 }
 
-/**
- * Extract API key from request headers
- */
-function extractApiKey(request: NextRequest): string | null {
-  const authHeader = request.headers.get('authorization');
-  const apiKeyHeader = request.headers.get('x-api-key');
-  
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    return authHeader.substring(7);
-  } else if (apiKeyHeader) {
-    return apiKeyHeader;
-  }
-  
-  return null;
-}
-
+// API Route Handler
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔧 STORE HASH - Contract-based endpoint with API key validation');
+    // Parse request body
+    const body: StoreHashRequest = await request.json();
     
-    // Connect to database for API key validation
+    // Validate required fields
+    if (!body.hash || !body.formId || !body.responseId || !body.apiKey) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Missing required fields: hash, formId, responseId, and apiKey are required' 
+        },
+        { status: 400 }
+      );
+    }
+    
+    // Get network ID from request or default to testnet (0)
+    const networkId = body.networkId ?? 0;
+    console.log('📡 Processing request for network ID:', networkId);
+    
+    // Validate network ID
+    if (networkId !== 0 && networkId !== 1) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Invalid network ID. Must be 0 (testnet) or 1 (mainnet)' 
+        },
+        { status: 400 }
+      );
+    }
+    
+    // Connect to database
     await dbConnect();
-
-    // Parse and validate request
-    const requestData = await request.json();
-    console.log('✅ Request validation passed');
-
-    const { hash, metadata } = requestData;
-
-    if (!hash) {
-      console.error('❌ Hash missing from request');
-      return NextResponse.json(
-        { error: 'Hash is required' },
-        { status: 400 }
-      );
-    }
-
-    if (!metadata || !metadata.formId || !metadata.responseId) {
-      console.error('❌ Missing required metadata fields');
-      return NextResponse.json(
-        { error: 'Missing required metadata fields (formId, responseId)' },
-        { status: 400 }
-      );
-    }
-
-    // Validate hash format (should be 64-character hex string)
-    if (!/^[a-fA-F0-9]{64}$/.test(hash)) {
-      console.error('❌ Invalid hash format');
-      return NextResponse.json(
-        { error: 'Invalid hash format. Expected 64-character hex string.' },
-        { status: 400 }
-      );
-    }
-
-    // Extract and validate API key
-    const apiKey = extractApiKey(request);
     
-    if (!apiKey) {
-      console.error('❌ No API key provided');
+    // Verify API key and check remaining tokens
+    const validationResult = await ApiKeyManager.validateAndConsumeToken(body.apiKey, 0);
+    
+    // First check if the API key is valid without consuming tokens
+    if (!validationResult.valid) {
       return NextResponse.json(
         { 
-          error: 'API key is required for storage operations',
-          message: 'Provide API key via Authorization header (Bearer token) or X-API-Key header'
+          success: false, 
+          error: validationResult.error || 'Invalid API key' 
         },
         { status: 401 }
       );
     }
-
-    console.log(`🔑 Validating API key: ${apiKey.substring(0, 8)}...`);
-
-    // Validate API key and consume 1 token
-    const apiKeyResult = await ApiKeyManager.validateAndConsumeToken(apiKey, 1);
     
-    if (!apiKeyResult.valid) {
-      console.error(`❌ API key validation failed: ${apiKeyResult.error}`);
+    // Get the API key status to check remaining tokens
+    const statusResult = await ApiKeyManager.getApiKeyStatus(body.apiKey);
+    
+    if (!statusResult.success || !statusResult.data) {
       return NextResponse.json(
         { 
-          error: 'Invalid or insufficient API key',
-          message: apiKeyResult.error
+          success: false, 
+          error: 'Failed to retrieve API key status' 
         },
-        { status: 401 }
+        { status: 500 }
       );
     }
-
-    const remainingTokens = apiKeyResult.remainingTokens!;
-    console.log(`✅ API key validated. Remaining tokens: ${remainingTokens}`);
-
-    console.log(`📋 Storing hash: ${hash.substring(0, 16)}...`);
-
-    // Store hash on blockchain
-    const txHash = await storeHashOnBlockchain(hash, metadata);
-
-    // Return success response with token information
+    
+    if (statusResult.data.remainingTokens <= 0) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Insufficient tokens. Please purchase more tokens to continue.' 
+        },
+        { status: 402 }
+      );
+    }
+    
+    // Store hash on blockchain with network-specific configuration
+    const txHash = await storeHashOnBlockchain(body.hash, {
+      formId: body.formId,
+      responseId: body.responseId,
+      networkId
+    });
+    
+    // Now consume the token after successful blockchain storage
+    const consumeResult = await ApiKeyManager.validateAndConsumeToken(body.apiKey, 1);
+    
+    if (!consumeResult.valid) {
+      console.warn('Failed to consume token after blockchain storage:', consumeResult.error);
+      // Transaction was successful, but token consumption failed
+      // This is logged but doesn't fail the request since the hash is already stored
+    }
+    
+    // Get network name for response
+    const networkType = getNetworkTypeFromId(networkId);
+    
+    // Return success response with transaction details
     return NextResponse.json({
       success: true,
-      message: 'Hash stored successfully on blockchain',
-      transactionHash: txHash,
-      network: process.env.CARDANO_NETWORK || 'Preview',
-      contractAddress: process.env.CONTRACT_ADDRESS,
-      timestamp: new Date().toISOString(),
-      tokenInfo: {
-        tokensUsed: 1,
-        remainingTokens: remainingTokens
-      },
-      blockchainProof: {
-        label: NoTamperData_CONSTANTS.METADATA_LABEL,
-        hash: hash,
-        txHash: txHash
+      data: {
+        transactionHash: txHash,
+        hash: body.hash,
+        formId: body.formId,
+        responseId: body.responseId,
+        network: {
+          id: networkId,
+          name: networkType,
+          isMainnet: networkId === 1
+        },
+        timestamp: new Date().toISOString(),
+        remainingTokens: consumeResult.remainingTokens ?? (statusResult.data.remainingTokens - 1),
+        blockchainExplorer: networkId === 1
+          ? `https://cardanoscan.io/transaction/${txHash}`
+          : `https://preview.cardanoscan.io/transaction/${txHash}`
       }
     });
-
+    
   } catch (error) {
-    console.error('💥 API error:', error);
+    console.error('API Error:', error);
     
-    // Enhanced error response
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    // Handle specific error types
+    if (error instanceof Error) {
+      if (error.message.includes('BLOCKFROST_PROJECT_ID')) {
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: 'Server configuration error. Please contact support.' 
+          },
+          { status: 500 }
+        );
+      }
+      
+      if (error.message.includes('PLATFORM_WALLET_MNEMONIC')) {
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: 'Platform wallet not configured. Please contact support.' 
+          },
+          { status: 500 }
+        );
+      }
+      
+      if (error.message.includes('Contract address')) {
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: 'Contract not deployed on the specified network' 
+          },
+          { status: 400 }
+        );
+      }
+      
+      if (error.message.includes('Network')) {
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: error.message 
+          },
+          { status: 400 }
+        );
+      }
+    }
     
+    // Generic error response
     return NextResponse.json(
       { 
-        error: 'Failed to store hash on blockchain', 
-        details: errorMessage,
-        timestamp: new Date().toISOString()
+        success: false, 
+        error: 'Failed to store hash on blockchain',
+        details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     );
   }
 }
 
-/**
- * GET /api/storehash
- * 
- * Returns information about the storage endpoint
- * This endpoint provides documentation for the storage API
- */
-export async function GET(): Promise<NextResponse> {
-  return NextResponse.json({
-    endpoint: 'storehash',
-    method: 'POST',
-    description: 'Store form response hash on Cardano blockchain',
-    authentication: 'Required - API key via Authorization header or X-API-Key header',
-    cost: '1 token per request',
-    requiredFields: {
-      hash: 'string (64-character hex string)',
-      metadata: {
-        formId: 'string',
-        responseId: 'string'
-      }
-    },
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer {your_api_key}',
-      'X-API-Key': '{your_api_key} (alternative to Authorization)'
-    },
-    response: {
-      success: 'boolean',
-      transactionHash: 'string',
-      network: 'string',
-      contractAddress: 'string',
-      timestamp: 'string (ISO)',
-      tokenInfo: {
-        tokensUsed: 'number',
-        remainingTokens: 'number'
+// GET method to check API status
+export async function GET(request: NextRequest) {
+  try {
+    // Get network ID from query params
+    const { searchParams } = new URL(request.url);
+    const networkId = parseInt(searchParams.get('networkId') || '0');
+    
+    // Validate network ID
+    if (networkId !== 0 && networkId !== 1) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Invalid network ID' 
+        },
+        { status: 400 }
+      );
+    }
+    
+    // Get network information
+    const networkType = getNetworkTypeFromId(networkId);
+    const contractAddress = getContractAddress(networkId);
+    
+    return NextResponse.json({
+      success: true,
+      service: 'NoTamperData Hash Storage API',
+      version: '1.0.0',
+      network: {
+        id: networkId,
+        type: networkType,
+        name: networkId === 1 ? 'Mainnet' : 'Preview Testnet',
+        contractAddress: contractAddress
       },
-      blockchainProof: {
-        label: 'number',
-        hash: 'string',
-        txHash: 'string'
-      }
-    },
-    errors: {
-      400: 'Bad request - missing or invalid data',
-      401: 'Unauthorized - invalid or missing API key',
-      500: 'Internal server error - blockchain or system error'
-    },
-    example: {
-      request: {
-        hash: 'fbc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b',
-        metadata: {
-          formId: '1FAIpQLSe_test_form_id',
-          responseId: 'test_response_123'
-        }
-      }
-    }
-  });
-}
-
-/**
- * OPTIONS /api/storehash
- * 
- * CORS support for storage endpoint
- */
-export async function OPTIONS(): Promise<NextResponse> {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Key'
-    }
-  });
+      endpoints: {
+        store: '/api/storehash',
+        verify: '/api/verify'
+      },
+      requiredFields: {
+        POST: ['hash', 'formId', 'responseId', 'apiKey'],
+        optionalFields: ['networkId']
+      },
+      documentation: 'https://docs.notamperdata.com/api'
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: 'Service information unavailable' 
+      },
+      { status: 500 }
+    );
+  }
 }
