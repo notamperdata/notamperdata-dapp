@@ -17,8 +17,6 @@ import {
 } from 'lucide-react';
 import WalletConnector, { ConnectedWallet } from '@/components/wallet/WalletConnector';
 import { paymentUtils, paymentValidation, transactionMetadata } from '@/lib/paymentConfig';
-import { ApiKeyManager } from '@/lib/ApiKeyManager';
-import { sendApiKeyEmail } from '@/lib/emailService';
 
 interface PaymentDetails {
   adaAmount: number;
@@ -170,28 +168,37 @@ const AccessPage: React.FC = () => {
       // Wait for transaction confirmation (simplified - in production, use proper confirmation)
       await new Promise(resolve => setTimeout(resolve, 5000));
       
-      // Create API key after successful payment
-      const apiKeyResult = await ApiKeyManager.createApiKey(txHash, paymentDetails.adaAmount);
+      // Create API key by calling the API endpoint
+      const apiKeyResponse = await fetch('/api/payment/confirm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          txHash,
+          adaAmount: paymentDetails.adaAmount,
+          tokenAmount: paymentDetails.tokenAmount,
+          email: paymentDetails.email || undefined,
+          networkId
+        })
+      });
+
+      if (!apiKeyResponse.ok) {
+        const errorData = await apiKeyResponse.json();
+        throw new Error(errorData.error || 'Failed to create API key');
+      }
+
+      const apiKeyData = await apiKeyResponse.json();
       
-      if (!apiKeyResult.success) {
-        throw new Error(apiKeyResult.error || 'Failed to create API key');
+      if (!apiKeyData.success || !apiKeyData.apiKey) {
+        throw new Error('Failed to generate API key');
       }
       
-      setApiKey(apiKeyResult.apiKey!);
+      setApiKey(apiKeyData.apiKey);
       
-      // Send email if provided
-      if (paymentDetails.email && apiKeyResult.apiKey) {
-        try {
-          await sendApiKeyEmail(paymentDetails.email, apiKeyResult.apiKey, {
-            adaAmount: paymentDetails.adaAmount,
-            tokenAmount: paymentDetails.tokenAmount,
-            transactionHash: txHash
-          });
-          console.log('API key sent to email:', paymentDetails.email);
-        } catch (emailError) {
-          console.error('Failed to send email:', emailError);
-          // Don't fail the transaction if email fails
-        }
+      // Email notification is handled by the API endpoint
+      if (paymentDetails.email && apiKeyData.emailSent) {
+        console.log('API key sent to email:', paymentDetails.email);
       }
       
       setStep('complete');

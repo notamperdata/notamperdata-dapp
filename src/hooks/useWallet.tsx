@@ -1,58 +1,61 @@
+// src/hooks/useWallet.tsx
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { BrowserWallet, type Asset, deserializeAddress } from '@meshsdk/core';
 
 // Wallet interfaces
 export interface ConnectedWallet {
   name: string;
-  api: any;
+  wallet: BrowserWallet;
   address: string;
+  verificationKeyHash: string;
   balance: string;
+  lovelace: string;
+  assets: Asset[];
   networkId: number;
   networkName: string;
+  lastConnected: number;
 }
 
 interface WalletContextType {
   connectedWallet: ConnectedWallet | null;
+  availableWallets: Array<{ name: string; icon: string; version: string }>;
   isConnecting: boolean;
   error: string | null;
-  connectWallet: (walletKey: string) => Promise<void>;
+  connectWallet: (walletName: string) => Promise<void>;
   disconnectWallet: () => void;
   updateBalance: () => Promise<void>;
+  refreshWallets: () => Promise<void>;
   clearError: () => void;
 }
 
 // Network configuration based on detected network ID
 const getNetworkFromId = (networkId: number): { name: string; isMainnet: boolean } => {
-  // Expanded network detection
-  const networkMap: { [key: number]: { name: string; isMainnet: boolean } } = {
-    1: { name: 'Mainnet', isMainnet: true },
-    0: { name: 'Preview Testnet', isMainnet: false },
-    2: { name: 'Preprod Testnet', isMainnet: false },
-    3: { name: 'Sanchonet', isMainnet: false }
-  };
-  return networkMap[networkId] || { name: `Unknown Network (${networkId})`, isMainnet: false };
+  if (networkId === 1) {
+    return { name: 'Mainnet', isMainnet: true };
+  }
+  return { name: 'Preview Testnet', isMainnet: false };
 };
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'notamperdata_connected_wallet';
+const STORAGE_KEY = 'notamperdata_wallet_connection';
 
 interface WalletProviderProps {
   children: ReactNode;
 }
 
-// Utility functions for local storage
-const saveWalletToStorage = (walletKey: string, wallet: ConnectedWallet) => {
+// Save wallet connection to storage
+const saveWalletToStorage = (wallet: ConnectedWallet) => {
   try {
     const walletData = {
-      walletKey,
       name: wallet.name,
       address: wallet.address,
       balance: wallet.balance,
       networkId: wallet.networkId,
       networkName: wallet.networkName,
-      timestamp: Date.now()
+      lastConnected: wallet.lastConnected
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(walletData));
   } catch (error) {
@@ -60,12 +63,14 @@ const saveWalletToStorage = (walletKey: string, wallet: ConnectedWallet) => {
   }
 };
 
+// Load wallet from storage
 const loadWalletFromStorage = () => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const walletData = JSON.parse(stored);
-      const isRecent = Date.now() - walletData.timestamp < 24 * 60 * 60 * 1000;
+      // Check if stored data is less than 24 hours old
+      const isRecent = Date.now() - walletData.lastConnected < 24 * 60 * 60 * 1000;
       if (isRecent) {
         return walletData;
       } else {
@@ -79,75 +84,36 @@ const loadWalletFromStorage = () => {
   return null;
 };
 
-// Robust balance parsing function that handles different wallet formats
-const parseWalletBalance = (rawBalance: any): string => {
-  try {
-    let lovelaceAmount = 0;
-    
-    console.log('Parsing balance, raw type:', typeof rawBalance, 'value:', rawBalance);
-    
-    if (typeof rawBalance === 'string') {
-      lovelaceAmount = parseInt(rawBalance) || 0;
-    } else if (typeof rawBalance === 'number') {
-      lovelaceAmount = rawBalance;
-    } else if (typeof rawBalance === 'bigint') {
-      lovelaceAmount = Number(rawBalance);
-    } else if (typeof rawBalance === 'object' && rawBalance !== null) {
-      const balanceObj = rawBalance as any;
-      
-      if (balanceObj.lovelace !== undefined) {
-        lovelaceAmount = parseInt(balanceObj.lovelace) || 0;
-      } else if (balanceObj.coin !== undefined) {
-        lovelaceAmount = parseInt(balanceObj.coin) || 0;
-      } else if (balanceObj.ada !== undefined) {
-        lovelaceAmount = Math.floor(parseFloat(balanceObj.ada) * 1000000) || 0;
-      } else if (balanceObj.value !== undefined) {
-        lovelaceAmount = parseInt(balanceObj.value) || 0;
-      } else if (balanceObj.amount !== undefined) {
-        lovelaceAmount = parseInt(balanceObj.amount) || 0;
-      } else if (balanceObj.quantity !== undefined) {
-        lovelaceAmount = parseInt(balanceObj.quantity) || 0;
-      } else {
-        const strValue = String(rawBalance);
-        lovelaceAmount = parseInt(strValue) || 0;
-      }
-    } else if (Array.isArray(rawBalance)) {
-      lovelaceAmount = rawBalance.reduce((sum: number, utxo: any) => {
-        let utxoAmount = 0;
-        if (typeof utxo === 'string') {
-          utxoAmount = parseInt(utxo) || 0;
-        } else if (typeof utxo === 'number') {
-          utxoAmount = utxo;
-        } else if (typeof utxo === 'bigint') {
-          utxoAmount = Number(utxo);
-        } else if (utxo && typeof utxo === 'object') {
-          const amount = utxo.amount || utxo.value || utxo.coin || utxo.lovelace || utxo.quantity || 0;
-          utxoAmount = typeof amount === 'string' ? parseInt(amount) : Number(amount);
-        }
-        return sum + (isNaN(utxoAmount) ? 0 : utxoAmount);
-      }, 0);
-    }
-    
-    const adaAmount = lovelaceAmount / 1000000;
-    return Number.isFinite(adaAmount) ? adaAmount.toFixed(6) : '0.000000';
-  } catch (error) {
-    console.error('Failed to parse wallet balance:', error);
-    return '0.000000';
-  }
-};
-
 export function WalletProvider({ children }: WalletProviderProps) {
   const [connectedWallet, setConnectedWallet] = useState<ConnectedWallet | null>(null);
+  const [availableWallets, setAvailableWallets] = useState<Array<{ name: string; icon: string; version: string }>>([]);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Load available wallets
+  const refreshWallets = async () => {
+    try {
+      const wallets = await BrowserWallet.getAvailableWallets();
+      setAvailableWallets(wallets);
+      console.log('Available wallets:', wallets);
+    } catch (error) {
+      console.error('Error fetching available wallets:', error);
+      setError('Failed to load available wallets');
+    }
+  };
+
+  // Initialize on mount
   useEffect(() => {
-    const restoreWallet = async () => {
-      const storedWallet = loadWalletFromStorage();
-      if (storedWallet && typeof window !== 'undefined') {
+    const initialize = async () => {
+      // Load available wallets
+      await refreshWallets();
+
+      // Check for saved connection
+      const savedConnection = loadWalletFromStorage();
+      if (savedConnection && savedConnection.name) {
         try {
-          console.log('Attempting to restore wallet connection:', storedWallet.name);
-          await connectWallet(storedWallet.walletKey, false);
+          console.log('Attempting to restore wallet connection:', savedConnection.name);
+          await connectWallet(savedConnection.name);
         } catch (error) {
           console.log('Failed to restore wallet connection:', error);
           localStorage.removeItem(STORAGE_KEY);
@@ -155,74 +121,96 @@ export function WalletProvider({ children }: WalletProviderProps) {
       }
     };
 
-    restoreWallet();
+    initialize();
   }, []);
 
-  const connectWallet = async (walletKey: string, shouldStore: boolean = true) => {
+  const connectWallet = async (walletName: string) => {
     setIsConnecting(true);
     setError(null);
 
     try {
-      console.log(`Attempting to connect to wallet: ${walletKey}`);
+      console.log(`Connecting to wallet: ${walletName}`);
       
-      const cardanoWallet = (window as any).cardano?.[walletKey];
-      if (!cardanoWallet) {
-        throw new Error('Wallet not found');
+      // Enable the wallet using MeshSDK
+      const wallet = await BrowserWallet.enable(walletName);
+      
+      // Get addresses
+      const usedAddresses = await wallet.getUsedAddresses();
+      const unusedAddresses = await wallet.getUnusedAddresses();
+      const changeAddress = await wallet.getChangeAddress();
+      
+      // Use first used address, or unused, or change address
+      const firstAddress = usedAddresses[0] || unusedAddresses[0] || changeAddress;
+      
+      if (!firstAddress) {
+        throw new Error('No addresses found in wallet');
       }
-
-      const api = await cardanoWallet.enable();
-      if (!api) {
-        throw new Error('Failed to enable wallet');
-      }
-
-      console.log('Wallet API enabled successfully');
-
-      const [address, rawBalance, networkId] = await Promise.all([
-        api.getChangeAddress().catch((err: any) => {
-          console.warn('Failed to get address:', err);
-          return api.getUsedAddresses?.().then((addrs: string[]) => addrs[0]) || 'Unknown address';
-        }),
-        api.getBalance().catch((err: any) => {
-          console.warn('Failed to get balance:', err);
-          return '0';
-        }),
-        api.getNetworkId().catch((err: any) => {
-          console.warn('Failed to get network ID:', err);
-          return 0;
-        })
-      ]);
-
-      console.log('Wallet info retrieved:', {
-        address: address?.substring(0, 20) + '...',
-        rawBalance,
-        networkId
-      });
-
+      
+      // Deserialize address to get verification key hash
+      const { pubKeyHash } = deserializeAddress(firstAddress);
+      
+      // Get network ID
+      const networkId = await wallet.getNetworkId();
       const networkInfo = getNetworkFromId(networkId);
-      console.log('Detected network:', networkInfo);
-
-      const adaBalance = parseWalletBalance(rawBalance);
-
-      const wallet: ConnectedWallet = {
-        name: cardanoWallet.name || walletKey,
-        api,
-        address: address || 'Unknown address',
+      
+      // Get balance - this is the key difference from raw CIP-30
+      let lovelace = "0";
+      let assets: Asset[] = [];
+      
+      try {
+        // Try the direct getLovelace method first (most wallets support this)
+        lovelace = await wallet.getLovelace();
+        console.log('Got lovelace directly:', lovelace);
+      } catch (error) {
+        console.log('getLovelace failed, trying getBalance:', error);
+        try {
+          // Fallback to getBalance and extract lovelace
+          const balance = await wallet.getBalance();
+          const lovelaceAsset = balance.find((asset: { unit: string; }) => asset.unit === 'lovelace');
+          if (lovelaceAsset) {
+            lovelace = lovelaceAsset.quantity;
+          }
+          // Filter out lovelace to get other assets
+          assets = balance.filter((asset: { unit: string; }) => asset.unit !== 'lovelace');
+        } catch (balanceError) {
+          console.error('Error fetching balance:', balanceError);
+        }
+      }
+      
+      // Try to get assets if not already fetched
+      if (assets.length === 0) {
+        try {
+          assets = await wallet.getAssets();
+        } catch (error) {
+          console.log('Could not fetch assets:', error);
+        }
+      }
+      
+      // Convert lovelace to ADA for display
+      const adaBalance = (parseInt(lovelace || "0") / 1000000).toFixed(2);
+      
+      const walletInfo: ConnectedWallet = {
+        name: walletName,
+        wallet,
+        address: firstAddress,
+        verificationKeyHash: pubKeyHash,
         balance: `${adaBalance} ADA`,
+        lovelace,
+        assets,
         networkId,
-        networkName: networkInfo.name
+        networkName: networkInfo.name,
+        lastConnected: Date.now()
       };
 
-      setConnectedWallet(wallet);
-
-      if (shouldStore) {
-        saveWalletToStorage(walletKey, wallet);
-      }
+      setConnectedWallet(walletInfo);
+      saveWalletToStorage(walletInfo);
 
       console.log('Wallet connected successfully:', {
-        name: wallet.name,
-        balance: wallet.balance,
-        networkId,
-        networkName: wallet.networkName
+        name: walletName,
+        address: firstAddress.substring(0, 20) + '...',
+        balance: `${adaBalance} ADA`,
+        networkName: networkInfo.name,
+        assetsCount: assets.length
       });
 
     } catch (error) {
@@ -254,18 +242,50 @@ export function WalletProvider({ children }: WalletProviderProps) {
   };
 
   const updateBalance = async () => {
-    if (!connectedWallet?.api) {
+    if (!connectedWallet?.wallet) {
       console.warn('Cannot update balance: No wallet connected');
       return;
     }
 
     try {
-      const rawBalance = await connectedWallet.api.getBalance();
-      const adaBalance = parseWalletBalance(rawBalance);
+      console.log('Updating wallet balance...');
+      
+      let lovelace = "0";
+      let assets: Asset[] = [];
+      
+      try {
+        // Try direct getLovelace method
+        lovelace = await connectedWallet.wallet.getLovelace();
+      } catch (error) {
+        // Fallback to getBalance
+        try {
+          const balance = await connectedWallet.wallet.getBalance();
+          const lovelaceAsset = balance.find((asset: { unit: string; }) => asset.unit === 'lovelace');
+          if (lovelaceAsset) {
+            lovelace = lovelaceAsset.quantity;
+          }
+          assets = balance.filter((asset: { unit: string; }) => asset.unit !== 'lovelace');
+        } catch (balanceError) {
+          console.error('Error updating balance:', balanceError);
+        }
+      }
+      
+      // Try to get assets
+      if (assets.length === 0) {
+        try {
+          assets = await connectedWallet.wallet.getAssets();
+        } catch (error) {
+          console.log('Could not fetch assets:', error);
+        }
+      }
+      
+      const adaBalance = (parseInt(lovelace || "0") / 1000000).toFixed(2);
       
       setConnectedWallet(prev => prev ? {
         ...prev,
-        balance: `${adaBalance} ADA`
+        balance: `${adaBalance} ADA`,
+        lovelace,
+        assets
       } : null);
       
       console.log('Balance updated:', `${adaBalance} ADA`);
@@ -281,11 +301,13 @@ export function WalletProvider({ children }: WalletProviderProps) {
 
   const contextValue: WalletContextType = {
     connectedWallet,
+    availableWallets,
     isConnecting,
     error,
     connectWallet,
     disconnectWallet,
     updateBalance,
+    refreshWallets,
     clearError
   };
 
@@ -296,6 +318,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
   );
 }
 
+// Custom hook to use wallet context
 export function useWallet() {
   const context = useContext(WalletContext);
   if (context === undefined) {
@@ -304,82 +327,158 @@ export function useWallet() {
   return context;
 }
 
+// Export utility functions for wallet operations
 export const walletUtils = {
-  formatBalance: (balance: string): string => {
-    try {
-      const ada = typeof balance === 'string' ? parseFloat(balance.replace(/[^0-9.-]+/g, '')) : Number(balance);
-      if (isNaN(ada)) return '0.000000 ADA';
-      return `${ada.toFixed(6)} ADA`;
-    } catch {
-      return '0.000000 ADA';
-    }
+  /**
+   * Format address for display
+   */
+  formatAddress: (address: string, length: number = 8): string => {
+    if (!address || address.length <= length * 2) return address;
+    return `${address.substring(0, length)}...${address.substring(address.length - length)}`;
   },
 
+  /**
+   * Format balance for display
+   */
+  formatBalance: (lovelace: string): string => {
+    const ada = parseInt(lovelace || "0") / 1000000;
+    if (ada >= 1000000) return `${(ada / 1000000).toFixed(1)}M ADA`;
+    if (ada >= 1000) return `${(ada / 1000).toFixed(1)}K ADA`;
+    return `${ada.toFixed(2)} ADA`;
+  },
+
+  /**
+   * Convert ADA to Lovelace
+   */
   adaToLovelace: (ada: number): bigint => {
-    return BigInt(Math.floor(Number(ada) * 1_000_000));
+    return BigInt(Math.floor(ada * 1_000_000));
   },
 
-  lovelaceToAda: (lovelace: bigint | string | number): number => {
-    const num = typeof lovelace === 'string' ? parseInt(lovelace) : Number(lovelace);
-    return Number.isFinite(num) ? num / 1_000_000 : 0;
+  /**
+   * Convert Lovelace to ADA
+   */
+  lovelaceToAda: (lovelace: bigint | string): number => {
+    return Number(lovelace) / 1_000_000;
   },
 
+  /**
+   * Validate Cardano address format
+   */
   isValidAddress: (address: string): boolean => {
-    if (!address) return false;
-    // Enhanced Cardano address validation
-    const cardanoPrefixes = ['addr1', 'addr_test1', 'stake1', 'stake_test1'];
-    return cardanoPrefixes.some(prefix => address.startsWith(prefix)) && address.length > 50;
+    return address.startsWith('addr_test') || address.startsWith('addr');
   },
 
+  /**
+   * Get network name from network ID
+   */
   getNetworkName: (networkId: number): string => {
-    return getNetworkFromId(networkId).name;
+    const networkInfo = getNetworkFromId(networkId);
+    return networkInfo.name;
   },
 
+  /**
+   * Check if network is mainnet
+   */
   isMainnet: (networkId: number): boolean => {
-    return getNetworkFromId(networkId).isMainnet;
+    return networkId === 1;
   },
 
-  hasSufficientBalance: (walletBalance: string, requiredAda: number): boolean => {
+  /**
+   * Check if wallet has sufficient balance
+   */
+  hasSufficientBalance: (lovelace: string, requiredAda: number): boolean => {
     try {
-      const balance = parseFloat(walletBalance.replace(/[^0-9.-]+/g, ''));
-      return Number.isFinite(balance) && balance >= requiredAda;
+      const availableAda = parseInt(lovelace || "0") / 1000000;
+      return availableAda >= requiredAda;
     } catch {
       return false;
     }
   },
 
-  detectWallets: (): Array<{ key: string; name: string; icon?: string }> => {
-    const wallets: Array<{ key: string; name: string; icon?: string }> = [];
+  /**
+   * Validate if address belongs to the correct network
+   */
+  isAddressForNetwork: (address: string, networkId: number): boolean => {
+    const isMainnet = networkId === 1;
+    const isMainnetAddress = address.startsWith('addr1');
+    const isTestnetAddress = address.startsWith('addr_test1');
     
-    if (typeof window !== 'undefined' && window.cardano) {
-      const knownWallets = [
-        { key: 'nami', name: 'Nami' },
-        { key: 'eternl', name: 'Eternl' },
-        { key: 'flint', name: 'Flint' },
-        { key: 'typhon', name: 'Typhon' },
-        { key: 'yoroi', name: 'Yoroi' },
-        { key: 'gerowallet', name: 'GeroWallet' },
-        { key: 'cardwallet', name: 'CardWallet' },
-        { key: 'nufi', name: 'NuFi' },
-        { key: 'lace', name: 'Lace' },
-        { key: 'begin', name: 'Begin' },
-        { key: 'vespr', name: 'Vespr' }
-      ];
-
-      knownWallets.forEach(wallet => {
-        if (window.cardano[wallet.key]) {
-          const walletData = window.cardano[wallet.key];
-          wallets.push({
-            key: wallet.key,
-            name: walletData.name || wallet.name,
-            icon: walletData.icon
-          });
-        }
-      });
-    }
-    
-    return wallets;
+    return (isMainnet && isMainnetAddress) || (!isMainnet && isTestnetAddress);
   },
 
-  parseBalance: parseWalletBalance
+  /**
+   * Get network badge color classes
+   */
+  getNetworkBadgeClasses: (networkId: number): string => {
+    if (networkId === 1) {
+      return 'bg-green-100 text-green-800 border-green-200';
+    }
+    return 'bg-blue-100 text-blue-800 border-blue-200';
+  },
+
+  /**
+   * Calculate transaction fee estimate
+   */
+  estimateTransactionFee: (networkId: number): number => {
+    // Basic fee estimation (in ADA)
+    return networkId === 1 ? 0.2 : 0.17;
+  },
+
+  /**
+   * Validate transaction hash format
+   */
+  isValidTxHash: (txHash: string): boolean => {
+    return /^[a-fA-F0-9]{64}$/.test(txHash);
+  },
+
+  /**
+   * Get explorer URL for transaction
+   */
+  getExplorerUrl: (txHash: string, networkId: number): string => {
+    if (networkId === 1) {
+      return `https://cardanoscan.io/transaction/${txHash}`;
+    }
+    return `https://preview.cardanoscan.io/transaction/${txHash}`;
+  },
+
+  /**
+   * Get explorer URL for address
+   */
+  getAddressExplorerUrl: (address: string, networkId: number): string => {
+    if (networkId === 1) {
+      return `https://cardanoscan.io/address/${address}`;
+    }
+    return `https://preview.cardanoscan.io/address/${address}`;
+  },
+
+  /**
+   * Parse error messages from wallet operations
+   */
+  parseWalletError: (error: any): string => {
+    if (!error) return 'Unknown wallet error';
+    
+    if (typeof error === 'string') {
+      return error;
+    }
+    
+    if (error.message) {
+      if (error.message.includes('User declined') || 
+          error.message.includes('cancelled') ||
+          error.message.includes('rejected')) {
+        return 'Transaction cancelled by user';
+      }
+      if (error.message.includes('insufficient')) {
+        return 'Insufficient funds in wallet';
+      }
+      if (error.message.includes('network')) {
+        return 'Network mismatch or connection error';
+      }
+      if (error.message.includes('locked')) {
+        return 'Wallet is locked. Please unlock it and try again';
+      }
+      return error.message;
+    }
+    
+    return 'Wallet operation failed';
+  }
 };
