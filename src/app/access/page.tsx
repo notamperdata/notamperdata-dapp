@@ -15,8 +15,18 @@ import {
   Database,
   RefreshCw
 } from 'lucide-react';
-import WalletConnector, { ConnectedWallet } from '@/components/wallet/WalletConnector';
+import { BrowserWallet } from '@meshsdk/core';
 import { paymentUtils, paymentValidation, transactionMetadata } from '@/lib/paymentConfig';
+
+// Define a simplified wallet interface for this component
+interface WalletInfo {
+  name: string;
+  address: string;
+  balance: string;
+  networkId: number;
+  networkName: string;
+  wallet: BrowserWallet;
+}
 
 interface PaymentDetails {
   adaAmount: number;
@@ -28,15 +38,17 @@ const AccessPage: React.FC = () => {
   const router = useRouter();
   
   // Wallet state
-  const [connectedWallet, setConnectedWallet] = useState<ConnectedWallet | null>(null);
+  const [connectedWallet, setConnectedWallet] = useState<WalletInfo | null>(null);
+  const [availableWallets, setAvailableWallets] = useState<Array<{ name: string; icon: string; version: string }>>([]);
   const [walletBalance, setWalletBalance] = useState<string>('0.00 ADA');
-  const [networkId, setNetworkId] = useState<number>(0); // Dynamic network ID
+  const [networkId, setNetworkId] = useState<number>(0);
   const [networkName, setNetworkName] = useState<string>('Unknown');
   
   // UI state
   const [step, setStep] = useState<'connect' | 'configure' | 'confirm' | 'processing' | 'complete'>('connect');
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [walletError, setWalletError] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
   
   // Payment state
   const [paymentDetails, setPaymentDetails] = useState<PaymentDetails>({
@@ -57,22 +69,112 @@ const AccessPage: React.FC = () => {
     { amount: 500, label: 'Business', description: '500 API calls' }
   ];
 
-  // Handle wallet connection with network detection
-  const handleWalletConnect = (wallet: ConnectedWallet) => {
-    console.log('Wallet connected:', {
-      name: wallet.name,
-      balance: wallet.balance,
-      networkId: wallet.networkId,
-      networkName: wallet.networkName
-    });
-    
-    setConnectedWallet(wallet);
-    setWalletBalance(wallet.balance);
-    setNetworkId(wallet.networkId);
-    setNetworkName(wallet.networkName);
-    setShowWalletModal(false);
+  // Load available wallets on component mount
+  useEffect(() => {
+    const loadWallets = async () => {
+      try {
+        const wallets = await BrowserWallet.getAvailableWallets();
+        setAvailableWallets(wallets);
+        console.log('Available wallets:', wallets);
+      } catch (error) {
+        console.error('Error loading wallets:', error);
+        setWalletError('Failed to load available wallets');
+      }
+    };
+
+    loadWallets();
+  }, []);
+
+  // Get network info from network ID
+  const getNetworkFromId = (networkId: number): { name: string; isMainnet: boolean } => {
+    if (networkId === 1) {
+      return { name: 'Mainnet', isMainnet: true };
+    }
+    return { name: 'Preview Testnet', isMainnet: false };
+  };
+
+  // Connect to wallet
+  const connectWallet = async (walletName: string) => {
+    setIsConnecting(true);
     setWalletError(null);
-    setStep('configure');
+
+    try {
+      console.log(`Connecting to wallet: ${walletName}`);
+      
+      // Enable the wallet using MeshSDK
+      const wallet = await BrowserWallet.enable(walletName);
+      
+      // Get addresses
+      const usedAddresses = await wallet.getUsedAddresses();
+      const unusedAddresses = await wallet.getUnusedAddresses();
+      const changeAddress = await wallet.getChangeAddress();
+      
+      // Use first used address, or unused, or change address
+      const firstAddress = usedAddresses[0] || unusedAddresses[0] || changeAddress;
+      
+      if (!firstAddress) {
+        throw new Error('No addresses found in wallet');
+      }
+      
+      // Get network ID
+      const networkId = await wallet.getNetworkId();
+      const networkInfo = getNetworkFromId(networkId);
+      
+      // Get balance
+      let lovelace = "0";
+      try {
+        lovelace = await wallet.getLovelace();
+      } catch (error) {
+        console.log('getLovelace failed, trying getBalance:', error);
+        try {
+          const balance = await wallet.getBalance();
+          const lovelaceAsset = balance.find((asset: { unit: string; }) => asset.unit === 'lovelace');
+          if (lovelaceAsset) {
+            lovelace = lovelaceAsset.quantity;
+          }
+        } catch (balanceError) {
+          console.error('Error getting balance:', balanceError);
+        }
+      }
+      
+      const adaBalance = (parseInt(lovelace || "0") / 1000000).toFixed(2);
+      
+      const walletInfo: WalletInfo = {
+        name: walletName,
+        address: firstAddress,
+        balance: `${adaBalance} ADA`,
+        networkId,
+        networkName: networkInfo.name,
+        wallet
+      };
+      
+      setConnectedWallet(walletInfo);
+      setWalletBalance(walletInfo.balance);
+      setNetworkId(networkId);
+      setNetworkName(networkInfo.name);
+      setShowWalletModal(false);
+      setStep('configure');
+      
+      console.log('Wallet connected successfully:', walletInfo);
+      
+    } catch (error) {
+      console.error('Failed to connect wallet:', error);
+      let errorMessage = 'Failed to connect to wallet';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('User rejected') || error.message.includes('cancelled')) {
+          errorMessage = 'Connection cancelled by user';
+        } else if (error.message.includes('network')) {
+          errorMessage = error.message;
+        } else {
+          errorMessage = `Failed to connect: ${error.message}`;
+        }
+      }
+      
+      setWalletError(errorMessage);
+    } finally {
+      setIsConnecting(false);
+    }
   };
 
   // Handle wallet disconnection
@@ -111,7 +213,7 @@ const AccessPage: React.FC = () => {
 
   // Process payment with dynamic network support
   const processPayment = async () => {
-    if (!connectedWallet) {
+    if (!connectedWallet || !connectedWallet.wallet) {
       setPaymentError('Please connect your wallet first');
       return;
     }
@@ -149,18 +251,26 @@ const AccessPage: React.FC = () => {
       
       console.log('Transaction metadata:', metadata);
       
-      // Build transaction using wallet API
-      const tx = await connectedWallet.api.transaction({
-        PaymentAddress: platformAddress,
-        Amount: lovelaceAmount.toString(),
-        Metadata: metadata
-      });
+      // Build transaction using MeshJS Transaction builder
+      const { Transaction } = await import('@meshsdk/core');
+      const tx = new Transaction({ initiator: connectedWallet.wallet });
+      
+      // Add payment output
+      tx.sendLovelace(platformAddress, lovelaceAmount.toString());
+      
+      // Add metadata if provided
+      if (metadata) {
+        tx.setMetadata(674, metadata); // Using label 674 for general metadata
+      }
+      
+      // Build the transaction
+      const unsignedTx = await tx.build();
       
       // Sign transaction
-      const signedTx = await connectedWallet.api.signTx(tx);
+      const signedTx = await connectedWallet.wallet.signTx(unsignedTx, true);
       
       // Submit transaction
-      const txHash = await connectedWallet.api.submitTx(signedTx);
+      const txHash = await connectedWallet.wallet.submitTx(signedTx);
       
       console.log('Transaction submitted:', txHash);
       setTransactionHash(txHash);
@@ -266,12 +376,66 @@ const AccessPage: React.FC = () => {
                   </div>
                 )}
                 
-                <WalletConnector
-                  onConnect={handleWalletConnect}
-                  onDisconnect={handleWalletDisconnect}
-                  connectedWallet={connectedWallet}
-                  isModal={true}
-                />
+                {/* Wallet Connection Content */}
+                {connectedWallet ? (
+                  <div className="space-y-4">
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <CheckCircle className="w-5 h-5 text-green-600 mx-auto mb-2" />
+                      <p className="text-green-800 font-medium text-center">Wallet Connected</p>
+                      <p className="text-sm text-green-600 text-center">{connectedWallet.name}</p>
+                      <p className="text-sm text-green-600 text-center">Network: {networkName}</p>
+                      <p className="text-sm text-green-600 text-center">Balance: {walletBalance}</p>
+                    </div>
+                    <button
+                      onClick={handleWalletDisconnect}
+                      className="w-full px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                    >
+                      Disconnect Wallet
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {availableWallets.length > 0 ? (
+                      <div className="space-y-2">
+                        {availableWallets.map((wallet) => (
+                          <button
+                            key={wallet.name}
+                            onClick={() => connectWallet(wallet.name)}
+                            disabled={isConnecting}
+                            className="w-full flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                              <span className="text-white font-bold text-sm">
+                                {wallet.name.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="text-left flex-1">
+                              <p className="font-medium text-gray-900">{wallet.name}</p>
+                              <p className="text-xs text-gray-500">v{wallet.version}</p>
+                            </div>
+                            {isConnecting && (
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <Wallet className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                        <p className="text-gray-600 mb-4">No Cardano wallets detected</p>
+                        <div className="bg-blue-50 rounded-lg p-4 text-left">
+                          <h4 className="font-medium text-blue-900 mb-2">How to Install a Wallet</h4>
+                          <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+                            <li>Visit a wallet website (e.g., namiwallet.io, eternl.io)</li>
+                            <li>Download the browser extension</li>
+                            <li>Create or restore your wallet</li>
+                            <li>Refresh this page to detect the wallet</li>
+                          </ol>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
