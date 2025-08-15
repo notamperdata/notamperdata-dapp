@@ -5,7 +5,8 @@ import {
   paymentValidation, 
   paymentUtils, 
   transactionMetadata,
-  NetworkType 
+  NetworkType,
+  getNetworkTypeFromId
 } from '@/lib/paymentConfig';
 
 export interface PaymentVerificationResult {
@@ -88,12 +89,18 @@ export class PaymentProcessor {
   private blockfrostProjectId: string;
   private blockfrostUrl: string;
   private network: NetworkType;
+  private networkId: number;
 
   constructor() {
     this.network = (process.env.NEXT_PUBLIC_CARDANO_NETWORK as NetworkType) || 'Preview';
-    this.platformAddress = paymentUtils.getPlatformAddress(this.network);
+    
+    // Convert NetworkType to networkId
+    this.networkId = this.network === 'Mainnet' ? 1 : 0;
+    
+    // Use networkId instead of NetworkType for utility functions
+    this.platformAddress = paymentUtils.getPlatformAddress(this.networkId);
     this.blockfrostProjectId = process.env.NEXT_PUBLIC_BLOCKFROST_PROJECT_ID || '';
-    this.blockfrostUrl = paymentUtils.getBlockfrostUrl(this.network);
+    this.blockfrostUrl = paymentUtils.getBlockfrostUrl(this.networkId);
 
     console.log(`Payment processor initialized for network: ${this.network}`);
     console.log(`Platform address: ${this.platformAddress}`);
@@ -191,6 +198,7 @@ export class PaymentProcessor {
           metadata: request.metadata ? transactionMetadata.createPaymentMetadata(
             request.amount, 
             request.email, 
+            this.networkId, // Pass networkId instead of metadata object
             request.metadata
           ) : undefined
         });
@@ -236,6 +244,7 @@ export class PaymentProcessor {
       metadata: request.metadata ? transactionMetadata.createPaymentMetadata(
         request.amount, 
         request.email, 
+        this.networkId, // Pass networkId instead of metadata object
         request.metadata
       ) : undefined
     };

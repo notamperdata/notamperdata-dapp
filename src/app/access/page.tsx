@@ -752,22 +752,6 @@ const AccessPage: React.FC = () => {
                       </a>
                     </div>
                   )}
-
-                  <div className="space-y-4">
-                    <button
-                      onClick={() => router.push('/dashboard')}
-                      className="w-full bg-blue-600 text-white px-6 py-4 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center justify-center shadow-md"
-                    >
-                      Go to Dashboard
-                      <ArrowRight className="w-5 h-5 ml-2" />
-                    </button>
-                    <button
-                      onClick={() => window.location.reload()}
-                      className="w-full border-2 border-gray-300 px-6 py-4 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium"
-                    >
-                      Purchase More Tokens
-                    </button>
-                  </div>
                 </div>
               )}
             </div>
