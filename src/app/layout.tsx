@@ -50,6 +50,12 @@ export default function RootLayout({
                   Verify
                 </Link>
                 <Link 
+                  href="/access" 
+                  className="text-gray-700 hover:text-[#4285F4] hover:bg-[#e8f0fe] px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                >
+                  Access Token
+                </Link>
+                <Link 
                   href="/support" 
                   className="text-gray-700 hover:text-[#4285F4] hover:bg-[#e8f0fe] px-3 py-2 rounded-md text-sm font-medium transition-colors"
                 >
@@ -69,7 +75,7 @@ export default function RootLayout({
         </header>
         
         <div className='bg-white'>
-          {children}
+         {children}
         </div>
         
         <footer className="bg-white border-t border-gray-200">
@@ -96,9 +102,9 @@ export default function RootLayout({
                   Contact
                 </Link>
               </div>
-              <p className="text-sm text-gray-500 mt-4 md:mt-0">
-                &copy; {new Date().getFullYear()} NoTamperData. All rights reserved.
-              </p>
+              <div className="text-sm text-gray-500 mt-4 md:mt-0">
+                &copy; 2024 NoTamperData. All rights reserved.
+              </div>
             </div>
           </div>
         </footer>
