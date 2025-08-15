@@ -1,13 +1,10 @@
 // src/lib/PaymentProcessor.ts
 import { 
   PAYMENT_CONSTANTS, 
-  NETWORK_CONFIG, 
   paymentValidation, 
   paymentUtils, 
   transactionMetadata,
-  NetworkType,
-  getNetworkTypeFromId
-} from '@/lib/paymentConfig';
+  NetworkType} from '@/lib/paymentConfig';
 
 export interface PaymentVerificationResult {
   valid: boolean;

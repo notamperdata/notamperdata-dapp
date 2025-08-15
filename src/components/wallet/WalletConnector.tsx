@@ -1,8 +1,9 @@
 // src/components/wallet/WalletConnector.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Wallet, AlertCircle, CheckCircle, X, RefreshCw, ChevronDown, Power } from 'lucide-react';
+import Image from 'next/image';
 import { useWallet } from '@/hooks/useWallet';
 import { walletUtils } from '@/hooks/useWallet';
 
@@ -39,18 +40,25 @@ const WalletConnector: React.FC<WalletConnectorProps> = ({
     clearError
   } = useWallet();
 
-  // Use external wallet if provided, otherwise use context
-  const connectedWallet = externalWallet || (contextWallet ? {
-    name: contextWallet.name,
-    address: contextWallet.address,
-    balance: contextWallet.balance,
-    networkId: contextWallet.networkId,
-    networkName: contextWallet.networkName
-  } : null);
+  // Use external wallet if provided, otherwise use context - memoized to prevent dependency issues
+  const connectedWallet = useMemo(() => {
+    return externalWallet || (contextWallet ? {
+      name: contextWallet.name,
+      address: contextWallet.address,
+      balance: contextWallet.balance,
+      networkId: contextWallet.networkId,
+      networkName: contextWallet.networkName
+    } : null);
+  }, [externalWallet, contextWallet]);
 
   const [showWalletDetails, setShowWalletDetails] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [connectingWallet, setConnectingWallet] = useState<string | null>(null);
+
+  // Memoize updateBalance to fix the dependency warning
+  const memoizedUpdateBalance = useCallback(() => {
+    updateBalance();
+  }, [updateBalance]);
 
   // Handle wallet connection
   const handleConnect = async (walletName: string) => {
@@ -96,13 +104,43 @@ const WalletConnector: React.FC<WalletConnectorProps> = ({
   // Auto-refresh balance periodically
   useEffect(() => {
     if (connectedWallet) {
-      const interval = setInterval(() => {
-        updateBalance();
-      }, 30000); // Every 30 seconds
+      const interval = setInterval(memoizedUpdateBalance, 30000); // Every 30 seconds
       
       return () => clearInterval(interval);
     }
-  }, [connectedWallet]);
+  }, [connectedWallet, memoizedUpdateBalance]);
+
+  // Render wallet icon component - use browser provided or simple fallback
+  const WalletIcon: React.FC<{ 
+    wallet: { name: string; icon?: string }; 
+    className?: string 
+  }> = ({ wallet, className = "w-8 h-8" }) => {
+    const [imageError, setImageError] = useState(false);
+    
+    // If wallet provides an icon and it hasn't failed to load
+    if (wallet.icon && !imageError) {
+      return (
+        <div className={`${className} relative overflow-hidden rounded-full bg-gray-100`}>
+          <Image
+            src={wallet.icon}
+            alt={`${wallet.name} wallet icon`}
+            fill
+            className="object-cover"
+            onError={() => setImageError(true)}
+            onLoad={() => setImageError(false)}
+          />
+        </div>
+      );
+    }
+    
+    // Fallback: Show wallet icon or initials
+    return (
+      <div className={`${className} bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center`}>
+        {/* Try to use a wallet icon first, then fallback to initials */}
+        <Wallet className="w-4 h-4 text-white" />
+      </div>
+    );
+  };
 
   // Modal styling classes
   const containerClass = isModal ? 'space-y-4' : 'space-y-6';
@@ -173,7 +211,7 @@ const WalletConnector: React.FC<WalletConnectorProps> = ({
                     {connectedWallet.balance}
                   </span>
                   <button
-                    onClick={updateBalance}
+                    onClick={memoizedUpdateBalance}
                     className="text-gray-400 hover:text-gray-600"
                     title="Refresh balance"
                   >
@@ -260,22 +298,7 @@ const WalletConnector: React.FC<WalletConnectorProps> = ({
                     `}
                   >
                     <div className="flex items-center space-x-3">
-                      {wallet.icon ? (
-                        <img 
-                          src={wallet.icon} 
-                          alt={wallet.name} 
-                          className="w-8 h-8 rounded-full"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      ) : (
-                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                          <span className="text-white font-bold text-sm">
-                            {wallet.name.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                      )}
+                      <WalletIcon wallet={wallet} />
                       <div className="text-left">
                         <p className="font-medium text-gray-900">{wallet.name}</p>
                         <p className="text-xs text-gray-500">v{wallet.version}</p>

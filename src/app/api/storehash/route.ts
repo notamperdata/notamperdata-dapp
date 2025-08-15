@@ -336,6 +336,7 @@ export async function GET(request: NextRequest) {
       documentation: 'https://docs.notamperdata.com/api'
     });
   } catch (error) {
+    console.log(error)
     return NextResponse.json(
       { 
         success: false, 

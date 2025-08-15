@@ -1,13 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { 
   Wallet, 
   CreditCard, 
   AlertCircle, 
   CheckCircle, 
-  ArrowRight, 
   Info,
   X,
   RefreshCw
@@ -32,7 +30,6 @@ interface PaymentDetails {
 }
 
 const AccessPage: React.FC = () => {
-  const router = useRouter();
   
   // Wallet state
   const [connectedWallet, setConnectedWallet] = useState<WalletInfo | null>(null);
