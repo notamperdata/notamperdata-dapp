@@ -14,7 +14,7 @@ import {
   loadNoTamperDataValidator,
   NoTamperData_CONSTANTS
 } from '@/lib/contract';
-import { accessTokenManager } from '@/lib/accessTokenManager';
+import { AccessTokenManager } from '@/lib/AccessTokenManager';
 import dbConnect from '@/lib/mongodb';
 
 // Initialize Lucid with dynamic network support
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
     await dbConnect();
     
     // Verify access token and check remaining tokens
-    const validationResult = await accessTokenManager.validateAndConsumeToken(body.accessToken, 0);
+    const validationResult = await AccessTokenManager.validateAndConsumeToken(body.accessToken, 0);
     
     // First check if the access token is valid without consuming tokens
     if (!validationResult.valid) {
@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Get the access token status to check remaining tokens
-    const statusResult = await accessTokenManager.getaccessTokenStatus(body.accessToken);
+    const statusResult = await AccessTokenManager.getAccessTokenStatus(body.accessToken);
     
     if (!statusResult.success || !statusResult.data) {
       return NextResponse.json(
@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
     });
     
     // Now consume the token after successful blockchain storage
-    const consumeResult = await accessTokenManager.validateAndConsumeToken(body.accessToken, 1);
+    const consumeResult = await AccessTokenManager.validateAndConsumeToken(body.accessToken, 1);
     
     if (!consumeResult.valid) {
       console.warn('Failed to consume token after blockchain storage:', consumeResult.error);

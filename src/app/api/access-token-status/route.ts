@@ -1,6 +1,6 @@
 // src/app/api/access-token-status/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { accessTokenManager } from '@/lib/accessTokenManager';
+import { AccessTokenManager } from '@/lib/AccessTokenManager';
 import dbConnect from '@/lib/mongodb';
 
 interface accessTokenStatusResponse {
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<accessToke
     console.log(`🔍 Checking status for access token: ${accessToken}`);
 
     // Get access token status
-    const statusResult = await accessTokenManager.getaccessTokenStatus(accessToken);
+    const statusResult = await AccessTokenManager.getAccessTokenStatus(accessToken);
 
     if (!statusResult.success) {
       console.error(`❌ Failed to get access token status: ${statusResult.error}`);

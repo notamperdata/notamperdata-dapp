@@ -1,8 +1,8 @@
 // src/app/api/generate-access-token/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { PaymentProcessor } from '@/lib/PaymentProccesor';
-import { accessTokenManager } from '@/lib/accessTokenManager';
-import { sendaccessTokenEmail } from '@/lib/emailService';
+import { AccessTokenManager } from '@/lib/AccessTokenManager';
+import { sendAccessTokenEmail } from '@/lib/emailService';
 import dbConnect from '@/lib/mongodb';
 
 interface GenerateaccessTokenRequest {
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatea
 
     // Create access token
     console.log('🔑 Creating access token...');
-    const createResult = await accessTokenManager.createaccessToken(txHash, adaAmount!);
+    const createResult = await AccessTokenManager.createAccessToken(txHash, adaAmount!);
 
     if (!createResult.success) {
       console.error(`❌ access token creation failed: ${createResult.error}`);
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatea
       try {
         console.log(`📧 Sending access token to email: ${email}`);
         
-        await sendaccessTokenEmail(email, accessToken, {
+        await sendAccessTokenEmail(email, accessToken, {
           adaAmount: adaAmount!,
           tokenAmount,
           transactionHash: txHash
