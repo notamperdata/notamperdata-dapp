@@ -123,7 +123,7 @@ export default function Home() {
                         Verify Integrity
                       </dt>
                       <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-600">
-                        <p className="flex-auto">Use our verification tool to confirm that your responses haven't been tampered with since collection.</p>
+                        <p className="flex-auto">Use our verification tool to confirm that your responses haven&apos;t been tampered with since collection.</p>
                       </dd>
                     </div>
                   </dl>

@@ -10,9 +10,6 @@ import {
   ArrowRight, 
   Info,
   X,
-  Shield,
-  Zap,
-  Database,
   RefreshCw
 } from 'lucide-react';
 import { BrowserWallet } from '@meshsdk/core';
@@ -592,7 +589,7 @@ const AccessPage: React.FC = () => {
                       className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
                     />
                     <p className="text-sm text-gray-600 mt-2">
-                      We'll send your access token to this email for safekeeping
+                      We&apos;ll send your access token to this email for safekeeping
                     </p>
                   </div>
 

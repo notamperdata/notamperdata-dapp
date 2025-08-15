@@ -1,16 +1,12 @@
 // src/app/api/storehash/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { 
-  Lucid, 
-  Blockfrost, 
   LucidEvolution
 } from '@lucid-evolution/lucid';
 import { 
   initializeLucid,
   getContractAddress,
   getNetworkTypeFromId,
-  networkUrls,
-  getLucidNetworkType,
   loadNoTamperDataValidator,
   NoTamperData_CONSTANTS
 } from '@/lib/contract';

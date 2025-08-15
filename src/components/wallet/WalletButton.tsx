@@ -29,7 +29,7 @@ interface WalletButtonProps {
   onDisconnect: () => void;
 }
 
-export default function WalletButton({ connectedWallet, onToggleModal, onDisconnect }: WalletButtonProps) {
+export default function WalletButton({ connectedWallet, onToggleModal }: WalletButtonProps) {
   const formatBalance = (balance: string): string => {
     try {
       const ada = parseFloat(balance);

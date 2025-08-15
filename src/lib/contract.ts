@@ -184,7 +184,7 @@ export function loadContractConfig(networkId?: number): ContractConfig {
 /**
  * Load validator from embedded data ONLY - no file system access
  */
-export function loadNoTamperDataValidator(networkType?: NetworkType): { 
+export function loadNoTamperDataValidator(_networkType?: NetworkType): { 
   compiledCode: string; 
   hash: string 
 } {

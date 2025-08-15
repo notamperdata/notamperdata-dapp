@@ -111,8 +111,8 @@ async function sendViaMailerSend(
 // SendGrid implementation stub (for backward compatibility)
 async function sendViaSendGrid(
   email: string,
-  accessToken: string,
-  data: accessTokenEmailData
+  _accessToken: string,
+  _data: accessTokenEmailData
 ): Promise<void> {
   console.log('SendGrid email would be sent to:', email);
   
@@ -136,8 +136,8 @@ async function sendViaSendGrid(
 // Mailgun implementation stub
 async function sendViaMailgun(
   email: string,
-  accessToken: string,
-  data: accessTokenEmailData
+  _accessToken: string,
+  _data: accessTokenEmailData
 ): Promise<void> {
   console.log('Mailgun email would be sent to:', email);
 }
@@ -145,8 +145,8 @@ async function sendViaMailgun(
 // SMTP implementation stub
 async function sendViaSMTP(
   email: string,
-  accessToken: string,
-  data: accessTokenEmailData
+  _accessToken: string,
+  _data: accessTokenEmailData
 ): Promise<void> {
   console.log('SMTP email would be sent to:', email);
 }

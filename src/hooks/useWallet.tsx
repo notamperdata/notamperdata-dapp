@@ -258,6 +258,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
         lovelace = await connectedWallet.wallet.getLovelace();
       } catch (error) {
         // Fallback to getBalance
+        console.log(error)
         try {
           const balance = await connectedWallet.wallet.getBalance();
           const lovelaceAsset = balance.find((asset: { unit: string; }) => asset.unit === 'lovelace');
