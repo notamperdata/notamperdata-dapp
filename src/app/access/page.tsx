@@ -279,7 +279,7 @@ const AccessPage: React.FC = () => {
       await new Promise(resolve => setTimeout(resolve, 5000));
       
       // Create API key by calling the API endpoint
-      const apiKeyResponse = await fetch('/api/payment/confirm', {
+      const apiKeyResponse = await fetch('/api/confirm', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

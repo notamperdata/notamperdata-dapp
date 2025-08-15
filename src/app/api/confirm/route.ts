@@ -1,4 +1,4 @@
-// src/app/api/payment/confirm/route.ts
+// src/app/api/confirm/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { ApiKeyManager } from '@/lib/ApiKeyManager';
 import { sendApiKeyEmail } from '@/lib/emailService';
