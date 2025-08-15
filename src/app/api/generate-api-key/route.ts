@@ -1,18 +1,18 @@
-// src/app/api/generate-api-key/route.ts
+// src/app/api/generate-access-token/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { PaymentProcessor } from '@/lib/PaymentProccesor';
-import { ApiKeyManager } from '@/lib/ApiKeyManager';
-import { sendApiKeyEmail } from '@/lib/emailService';
+import { accessTokenManager } from '@/lib/accessTokenManager';
+import { sendaccessTokenEmail } from '@/lib/emailService';
 import dbConnect from '@/lib/mongodb';
 
-interface GenerateApiKeyRequest {
+interface GenerateaccessTokenRequest {
   txHash: string;
   email?: string;
 }
 
-interface GenerateApiKeyResponse {
+interface GenerateaccessTokenResponse {
   success: boolean;
-  apiKey?: string;
+  accessToken?: string;
   tokens?: number;
   adaAmount?: number;
   transactionHash?: string;
@@ -21,22 +21,22 @@ interface GenerateApiKeyResponse {
 }
 
 /**
- * POST /api/generate-api-key
+ * POST /api/generate-access-token
  * 
- * Generates API key after payment verification
+ * Generates access token after payment verification
  * Accepts: txHash, optional email
- * Verifies payment and creates API key
+ * Verifies payment and creates access token
  * Optionally sends email notification
  */
-export async function POST(request: NextRequest): Promise<NextResponse<GenerateApiKeyResponse>> {
+export async function POST(request: NextRequest): Promise<NextResponse<GenerateaccessTokenResponse>> {
   try {
-    console.log('🔑 Generate API Key - Processing request');
+    console.log('🔑 Generate access token - Processing request');
 
     // Connect to database
     await dbConnect();
 
     // Parse and validate request
-    const requestData: GenerateApiKeyRequest = await request.json();
+    const requestData: GenerateaccessTokenRequest = await request.json();
     const { txHash, email } = requestData;
 
     // Validate required fields
@@ -95,32 +95,32 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateA
     const { adaAmount } = paymentResult;
     console.log(`✅ Payment verified: ${adaAmount} ADA`);
 
-    // Create API key
-    console.log('🔑 Creating API key...');
-    const createResult = await ApiKeyManager.createApiKey(txHash, adaAmount!);
+    // Create access token
+    console.log('🔑 Creating access token...');
+    const createResult = await accessTokenManager.createaccessToken(txHash, adaAmount!);
 
     if (!createResult.success) {
-      console.error(`❌ API key creation failed: ${createResult.error}`);
+      console.error(`❌ access token creation failed: ${createResult.error}`);
       return NextResponse.json(
         { 
           success: false, 
-          error: createResult.error || 'Failed to create API key' 
+          error: createResult.error || 'Failed to create access token' 
         },
         { status: 500 }
       );
     }
 
-    const apiKey = createResult.apiKey!;
+    const accessToken = createResult.accessToken!;
     const tokenAmount = Math.floor(adaAmount! * 1); // 1 ADA = 1 token
 
-    console.log(`✅ API key created successfully: ${apiKey} with ${tokenAmount} tokens`);
+    console.log(`✅ access token created successfully: ${accessToken} with ${tokenAmount} tokens`);
 
     // Send email notification if email provided
     if (email) {
       try {
-        console.log(`📧 Sending API key to email: ${email}`);
+        console.log(`📧 Sending access token to email: ${email}`);
         
-        await sendApiKeyEmail(email, apiKey, {
+        await sendaccessTokenEmail(email, accessToken, {
           adaAmount: adaAmount!,
           tokenAmount,
           transactionHash: txHash
@@ -130,30 +130,30 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateA
       } catch (emailError) {
         console.warn('⚠️ Email sending failed:', emailError);
         // Don't fail the entire request if email fails
-        // API key was created successfully, email is optional
+        // access token was created successfully, email is optional
       }
     }
 
     // Return success response
     return NextResponse.json({
       success: true,
-      apiKey,
+      accessToken,
       tokens: tokenAmount,
       adaAmount: adaAmount!,
       transactionHash: txHash,
-      message: 'API key generated successfully',
+      message: 'access token generated successfully',
       ...(email && { emailSent: true })
     });
 
   } catch (error) {
-    console.error('💥 Generate API key error:', error);
+    console.error('💥 Generate access token error:', error);
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     
     return NextResponse.json(
       { 
         success: false,
-        error: 'Internal server error during API key generation', 
+        error: 'Internal server error during access token generation', 
         message: errorMessage
       },
       { status: 500 }
@@ -162,22 +162,22 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateA
 }
 
 /**
- * GET /api/generate-api-key
+ * GET /api/generate-access-token
  * 
- * Returns information about the API key generation process
+ * Returns information about the access token generation process
  */
 export async function GET(): Promise<NextResponse> {
   return NextResponse.json({
-    endpoint: 'generate-api-key',
+    endpoint: 'generate-access-token',
     method: 'POST',
-    description: 'Generate API key after payment verification',
+    description: 'Generate access token after payment verification',
     requiredFields: ['txHash'],
     optionalFields: ['email'],
     exchangeRate: '1 ADA = 1 token',
     minimumPayment: '1 ADA',
     response: {
       success: 'boolean',
-      apiKey: 'string (ak_randomstring format)',
+      accessToken: 'string (ak_randomstring format)',
       tokens: 'number',
       adaAmount: 'number',
       transactionHash: 'string'

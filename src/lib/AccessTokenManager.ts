@@ -1,23 +1,23 @@
-// src/lib/apiKeyManager.ts
+// src/lib/AccessTokenManager.ts
 import crypto from 'crypto';
-import ApiKey, { IApiKey, IApiKeyModel } from '@/models/ApiKey';
+import AccessToken from '@/models/AccessToken';
 
-export interface ApiKeyCreateResult {
+export interface AccessTokenCreateResult {
   success: boolean;
-  apiKey?: string;
+  accessToken?: string;
   error?: string;
 }
 
-export interface ApiKeyValidationResult {
+export interface AccessTokenValidationResult {
   valid: boolean;
   remainingTokens?: number;
   error?: string;
 }
 
-export interface ApiKeyStatusResult {
+export interface AccessTokenStatusResult {
   success: boolean;
   data?: {
-    apiKeyId: string;
+    accessTokenId: string;
     adaAmount: number;
     tokenAmount: number;
     remainingTokens: number;
@@ -29,7 +29,7 @@ export interface ApiKeyStatusResult {
   error?: string;
 }
 
-export class ApiKeyManager {
+export class AccessTokenManager {
   // Exchange rate: 1 ADA = 1 token
   private static readonly ADA_TO_TOKEN_RATE = 1;
   
@@ -37,27 +37,27 @@ export class ApiKeyManager {
   private static readonly MIN_ADA_AMOUNT = 1;
 
   /**
-   * Generate API key ID in format ak_randomstring
+   * Generate access token ID in format ak_randomstring
    * Uses 16 random hexadecimal characters after 'ak_'
    */
-  static generateApiKeyId(): string {
+  static generateAccessTokenId(): string {
     const randomBytes = crypto.randomBytes(8); // 8 bytes = 16 hex chars
     const randomString = randomBytes.toString('hex');
     return `ak_${randomString}`;
   }
 
   /**
-   * Create API key after successful payment verification
+   * Create access token after successful payment verification
    * @param txHash - Cardano transaction hash
    * @param adaAmount - Amount of ADA paid
    * @returns Promise with creation result
    */
-  static async createApiKey(
+  static async createAccessToken(
     txHash: string,
     adaAmount: number
-  ): Promise<ApiKeyCreateResult> {
+  ): Promise<AccessTokenCreateResult> {
     try {
-      console.log(`Creating API key for tx: ${txHash}, amount: ${adaAmount} ADA`);
+      console.log(`Creating access token for tx: ${txHash}, amount: ${adaAmount} ADA`);
 
       // Validate inputs
       if (!txHash || !/^[a-fA-F0-9]{64}$/.test(txHash)) {
@@ -72,12 +72,12 @@ export class ApiKeyManager {
       }
 
       // Check if transaction already used
-      const existingKey = await ApiKey.findOne({ txHash });
-      if (existingKey) {
-        console.log(`Transaction ${txHash} already used for API key ${existingKey.apiKeyId}`);
+      const existingToken = await AccessToken.findOne({ txHash });
+      if (existingToken) {
+        console.log(`Transaction ${txHash} already used for access token ${existingToken.accessTokenId}`);
         return { 
           success: false, 
-          error: 'Transaction hash already used for API key generation' 
+          error: 'Transaction hash already used for access token generation' 
         };
       }
 
@@ -91,26 +91,26 @@ export class ApiKeyManager {
         };
       }
 
-      // Generate unique API key ID
-      let apiKeyId: string;
+      // Generate unique access token ID
+      let accessTokenId: string;
       let attempts = 0;
       const maxAttempts = 10;
 
       do {
-        apiKeyId = this.generateApiKeyId();
+        accessTokenId = this.generateAccessTokenId();
         attempts++;
         
         if (attempts > maxAttempts) {
           return { 
             success: false, 
-            error: 'Failed to generate unique API key after multiple attempts' 
+            error: 'Failed to generate unique access token after multiple attempts' 
           };
         }
-      } while (await ApiKey.findOne({ apiKeyId }));
+      } while (await AccessToken.findOne({ accessTokenId }));
 
-      // Create new API key record
-      const newApiKey = new ApiKey({
-        apiKeyId,
+      // Create new access token record
+      const newAccessToken = new AccessToken({
+        accessTokenId,
         txHash,
         adaAmount,
         tokenAmount,
@@ -118,24 +118,24 @@ export class ApiKeyManager {
         isActive: true
       });
 
-      await newApiKey.save();
+      await newAccessToken.save();
 
-      console.log(`API key created successfully: ${apiKeyId} with ${tokenAmount} tokens`);
+      console.log(`Access token created successfully: ${accessTokenId} with ${tokenAmount} tokens`);
 
       return { 
         success: true, 
-        apiKey: apiKeyId 
+        accessToken: accessTokenId 
       };
 
     } catch (error) {
-      console.error('Error creating API key:', error);
+      console.error('Error creating access token:', error);
       
       // Handle specific MongoDB errors
       if (error instanceof Error) {
         if (error.message.includes('duplicate key')) {
           return { 
             success: false, 
-            error: 'Transaction already processed or API key collision' 
+            error: 'Transaction already processed or access token collision' 
           };
         }
         
@@ -149,29 +149,29 @@ export class ApiKeyManager {
 
       return { 
         success: false, 
-        error: 'Internal error during API key creation' 
+        error: 'Internal error during access token creation' 
       };
     }
   }
 
   /**
-   * Validate API key and consume specified number of tokens
-   * @param apiKeyId - The API key to validate
+   * Validate access token and consume specified number of tokens
+   * @param accessTokenId - The access token to validate
    * @param tokensToConsume - Number of tokens to consume (default: 1)
    * @returns Promise with validation result
    */
   static async validateAndConsumeToken(
-    apiKeyId: string,
+    accessTokenId: string,
     tokensToConsume: number = 1
-  ): Promise<ApiKeyValidationResult> {
+  ): Promise<AccessTokenValidationResult> {
     try {
-      console.log(`Validating API key: ${apiKeyId}, consuming ${tokensToConsume} tokens`);
+      console.log(`Validating access token: ${accessTokenId}, consuming ${tokensToConsume} tokens`);
 
-      // Validate API key format
-      if (!apiKeyId || !/^ak_[a-zA-Z0-9]{16}$/.test(apiKeyId)) {
+      // Validate access token format
+      if (!accessTokenId || !/^ak_[a-zA-Z0-9]{16}$/.test(accessTokenId)) {
         return { 
           valid: false, 
-          error: 'Invalid API key format. Expected format: ak_[16 alphanumeric characters]' 
+          error: 'Invalid access token format. Expected format: ak_[16 alphanumeric characters]' 
         };
       }
 
@@ -183,43 +183,43 @@ export class ApiKeyManager {
         };
       }
 
-      // Find active API key with sufficient tokens
-      const apiKey = await ApiKey.findOne({
-        apiKeyId,
+      // Find active access token with sufficient tokens
+      const foundToken = await AccessToken.findOne({
+        accessTokenId,
         isActive: true,
         remainingTokens: { $gte: tokensToConsume }
       });
 
-      if (!apiKey) {
+      if (!foundToken) {
         // Check if key exists but is inactive or has no tokens
-        const inactiveKey = await ApiKey.findOne({ apiKeyId });
+        const inactiveToken = await AccessToken.findOne({ accessTokenId });
         
-        if (!inactiveKey) {
+        if (!inactiveToken) {
           return { 
             valid: false, 
-            error: 'API key not found' 
+            error: 'Access token not found' 
           };
         }
         
-        if (!inactiveKey.isActive) {
+        if (!inactiveToken.isActive) {
           return { 
             valid: false, 
-            error: 'API key is disabled' 
+            error: 'Access token is disabled' 
           };
         }
         
-        if (inactiveKey.remainingTokens < tokensToConsume) {
+        if (inactiveToken.remainingTokens < tokensToConsume) {
           return { 
             valid: false, 
-            error: `Insufficient tokens. Required: ${tokensToConsume}, Available: ${inactiveKey.remainingTokens}` 
+            error: `Insufficient tokens. Required: ${tokensToConsume}, Available: ${inactiveToken.remainingTokens}` 
           };
         }
       }
 
       // Consume tokens atomically
-      const updateResult = await ApiKey.findOneAndUpdate(
+      const updateResult = await AccessToken.findOneAndUpdate(
         {
-          apiKeyId,
+          accessTokenId,
           isActive: true,
           remainingTokens: { $gte: tokensToConsume }
         },
@@ -236,7 +236,7 @@ export class ApiKeyManager {
       if (!updateResult) {
         return { 
           valid: false, 
-          error: 'Failed to consume tokens. Key may have been used by another request.' 
+          error: 'Failed to consume tokens. Token may have been used by another request.' 
         };
       }
 
@@ -248,76 +248,76 @@ export class ApiKeyManager {
       };
 
     } catch (error) {
-      console.error('Error validating API key:', error);
+      console.error('Error validating access token:', error);
       return { 
         valid: false, 
-        error: 'Internal error during API key validation' 
+        error: 'Internal error during access token validation' 
       };
     }
   }
 
   /**
-   * Get API key status and usage information
-   * @param apiKeyId - The API key to check
+   * Get access token status and usage information
+   * @param accessTokenId - The access token to check
    * @returns Promise with status result
    */
-  static async getApiKeyStatus(apiKeyId: string): Promise<ApiKeyStatusResult> {
+  static async getAccessTokenStatus(accessTokenId: string): Promise<AccessTokenStatusResult> {
     try {
-      console.log(`Getting status for API key: ${apiKeyId}`);
+      console.log(`Getting status for access token: ${accessTokenId}`);
 
-      // Validate API key format
-      if (!apiKeyId || !/^ak_[a-zA-Z0-9]{16}$/.test(apiKeyId)) {
+      // Validate access token format
+      if (!accessTokenId || !/^ak_[a-zA-Z0-9]{16}$/.test(accessTokenId)) {
         return { 
           success: false, 
-          error: 'Invalid API key format' 
+          error: 'Invalid access token format' 
         };
       }
 
-      const apiKey = await ApiKey.findOne({ apiKeyId });
+      const foundToken = await AccessToken.findOne({ accessTokenId });
       
-      if (!apiKey) {
+      if (!foundToken) {
         return { 
           success: false, 
-          error: 'API key not found' 
+          error: 'Access token not found' 
         };
       }
 
-      const usedTokens = apiKey.tokenAmount - apiKey.remainingTokens;
+      const usedTokens = foundToken.tokenAmount - foundToken.remainingTokens;
 
       return {
         success: true,
         data: {
-          apiKeyId: apiKey.apiKeyId,
-          adaAmount: apiKey.adaAmount,
-          tokenAmount: apiKey.tokenAmount,
-          remainingTokens: apiKey.remainingTokens,
+          accessTokenId: foundToken.accessTokenId,
+          adaAmount: foundToken.adaAmount,
+          tokenAmount: foundToken.tokenAmount,
+          remainingTokens: foundToken.remainingTokens,
           usedTokens: usedTokens,
-          isActive: apiKey.isActive,
-          createdAt: apiKey.createdAt,
-          lastUsedAt: apiKey.lastUsedAt
+          isActive: foundToken.isActive,
+          createdAt: foundToken.createdAt,
+          lastUsedAt: foundToken.lastUsedAt
         }
       };
 
     } catch (error) {
-      console.error('Error getting API key status:', error);
+      console.error('Error getting access token status:', error);
       return { 
         success: false, 
-        error: 'Internal error while retrieving API key status' 
+        error: 'Internal error while retrieving access token status' 
       };
     }
   }
 
   /**
-   * Disable an API key (soft delete)
-   * @param apiKeyId - The API key to disable
+   * Disable an access token (soft delete)
+   * @param accessTokenId - The access token to disable
    * @returns Promise with result
    */
-  static async disableApiKey(apiKeyId: string): Promise<{ success: boolean; error?: string }> {
+  static async disableAccessToken(accessTokenId: string): Promise<{ success: boolean; error?: string }> {
     try {
-      console.log(`Disabling API key: ${apiKeyId}`);
+      console.log(`Disabling access token: ${accessTokenId}`);
 
-      const result = await ApiKey.findOneAndUpdate(
-        { apiKeyId },
+      const result = await AccessToken.findOneAndUpdate(
+        { accessTokenId },
         { 
           isActive: false,
           lastUsedAt: new Date()
@@ -328,18 +328,18 @@ export class ApiKeyManager {
       if (!result) {
         return { 
           success: false, 
-          error: 'API key not found' 
+          error: 'Access token not found' 
         };
       }
 
-      console.log(`API key ${apiKeyId} disabled successfully`);
+      console.log(`Access token ${accessTokenId} disabled successfully`);
       return { success: true };
 
     } catch (error) {
-      console.error('Error disabling API key:', error);
+      console.error('Error disabling access token:', error);
       return { 
         success: false, 
-        error: 'Internal error while disabling API key' 
+        error: 'Internal error while disabling access token' 
       };
     }
   }
@@ -350,7 +350,7 @@ export class ApiKeyManager {
    */
   static async getPlatformStats() {
     try {
-      const stats = await ApiKey.getUsageStats();
+      const stats = await AccessToken.getUsageStats();
       return {
         success: true,
         data: stats[0] || {
@@ -371,12 +371,12 @@ export class ApiKeyManager {
   }
 
   /**
-   * Utility method to validate if API key format is correct
-   * @param apiKeyId - API key to validate
+   * Utility method to validate if access token format is correct
+   * @param accessTokenId - Access token to validate
    * @returns boolean indicating if format is valid
    */
-  static isValidApiKeyFormat(apiKeyId: string): boolean {
-    return /^ak_[a-zA-Z0-9]{16}$/.test(apiKeyId);
+  static isValidAccessTokenFormat(accessTokenId: string): boolean {
+    return /^ak_[a-zA-Z0-9]{16}$/.test(accessTokenId);
   }
 
   /**

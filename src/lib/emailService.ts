@@ -1,25 +1,25 @@
 // src/lib/emailService.ts
 /**
- * Email service for sending API keys to users
+ * Email service for sending Access_Tokens to users
  * This is a stub implementation - replace with actual email provider
  */
 
-export interface ApiKeyEmailData {
+export interface accessTokenEmailData {
   adaAmount: number;
   tokenAmount: number;
   transactionHash: string;
 }
 
 /**
- * Send API key to user via email
+ * Send access token to user via email
  * @param email - Recipient email address
- * @param apiKey - Generated API key
+ * @param accessToken - Generated access token
  * @param data - Payment details
  */
-export async function sendApiKeyEmail(
+export async function sendAccessTokenEmail(
   email: string,
-  apiKey: string,
-  data: ApiKeyEmailData
+  accessToken: string,
+  data: accessTokenEmailData
 ): Promise<void> {
   // Validate email format
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -29,30 +29,30 @@ export async function sendApiKeyEmail(
 
   console.log('Email service called:', {
     to: email,
-    apiKey: apiKey.substring(0, 10) + '...',
+    accessToken: accessToken.substring(0, 10) + '...',
     data
   });
 
   // Check for email service configuration
   const emailProvider = process.env.EMAIL_PROVIDER;
-  const emailApiKey = process.env.EMAIL_API_KEY;
+  const emailaccessToken = process.env.EMAIL_Access_Token;
   
-  if (!emailProvider || !emailApiKey) {
+  if (!emailProvider || !emailaccessToken) {
     console.warn('Email service not configured. Skipping email send.');
-    console.log('To enable email, set EMAIL_PROVIDER and EMAIL_API_KEY environment variables');
+    console.log('To enable email, set EMAIL_PROVIDER and EMAIL_Access_Token environment variables');
     return;
   }
 
   // Implement actual email sending based on provider
   switch (emailProvider) {
     case 'sendgrid':
-      await sendViaSendGrid(email, apiKey, data);
+      await sendViaSendGrid(email, accessToken, data);
       break;
     case 'mailgun':
-      await sendViaMailgun(email, apiKey, data);
+      await sendViaMailgun(email, accessToken, data);
       break;
     case 'smtp':
-      await sendViaSMTP(email, apiKey, data);
+      await sendViaSMTP(email, accessToken, data);
       break;
     default:
       console.warn(`Unknown email provider: ${emailProvider}`);
@@ -63,8 +63,8 @@ export async function sendApiKeyEmail(
 // SendGrid implementation stub
 async function sendViaSendGrid(
   email: string,
-  apiKey: string,
-  data: ApiKeyEmailData
+  accessToken: string,
+  data: accessTokenEmailData
 ): Promise<void> {
   // TODO: Implement SendGrid integration
   console.log('SendGrid email would be sent to:', email);
@@ -72,14 +72,14 @@ async function sendViaSendGrid(
   // Example implementation (requires @sendgrid/mail package):
   /*
   const sgMail = require('@sendgrid/mail');
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  sgMail.setaccessToken(process.env.SENDGRID_Access_Token);
   
   const msg = {
     to: email,
     from: 'noreply@notamperdata.com',
-    subject: 'Your NoTamperData API Key',
-    text: `Your API key: ${apiKey}`,
-    html: generateEmailHTML(apiKey, data)
+    subject: 'Your NoTamperData access token',
+    text: `Your access token: ${accessToken}`,
+    html: generateEmailHTML(accessToken, data)
   };
   
   await sgMail.send(msg);
@@ -89,8 +89,8 @@ async function sendViaSendGrid(
 // Mailgun implementation stub
 async function sendViaMailgun(
   email: string,
-  apiKey: string,
-  data: ApiKeyEmailData
+  accessToken: string,
+  data: accessTokenEmailData
 ): Promise<void> {
   // TODO: Implement Mailgun integration
   console.log('Mailgun email would be sent to:', email);
@@ -99,46 +99,46 @@ async function sendViaMailgun(
 // SMTP implementation stub
 async function sendViaSMTP(
   email: string,
-  apiKey: string,
-  data: ApiKeyEmailData
+  accessToken: string,
+  data: accessTokenEmailData
 ): Promise<void> {
   // TODO: Implement SMTP integration using nodemailer
   console.log('SMTP email would be sent to:', email);
 }
 
 // Generate email HTML content
-function generateEmailHTML(apiKey: string, data: ApiKeyEmailData): string {
+function generateEmailHTML(accessToken: string, data: accessTokenEmailData): string {
   return `
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Your NoTamperData API Key</title>
+      <title>Your NoTamperData access token</title>
       <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
         .header { background: #0033AD; color: white; padding: 20px; text-align: center; }
         .content { background: #f9f9f9; padding: 20px; }
-        .api-key { background: #fff; border: 2px solid #0033AD; padding: 15px; margin: 20px 0; font-family: monospace; font-size: 16px; }
+        .access-token { background: #fff; border: 2px solid #0033AD; padding: 15px; margin: 20px 0; font-family: monospace; font-size: 16px; }
         .footer { text-align: center; margin-top: 20px; color: #666; }
       </style>
     </head>
     <body>
       <div class="container">
         <div class="header">
-          <h1>Your NoTamperData API Key</h1>
+          <h1>Your NoTamperData access token</h1>
         </div>
         <div class="content">
           <p>Thank you for your purchase!</p>
-          <p>Your API key is:</p>
-          <div class="api-key">${apiKey}</div>
+          <p>Your access token is:</p>
+          <div class="access-token">${accessToken}</div>
           <h3>Transaction Details:</h3>
           <ul>
             <li>Amount Paid: ${data.adaAmount} ADA</li>
             <li>Tokens Received: ${data.tokenAmount}</li>
             <li>Transaction Hash: ${data.transactionHash}</li>
           </ul>
-          <p>Store this API key securely. You'll need it to access the NoTamperData API.</p>
+          <p>Store this access token securely. You'll need it to access the NoTamperData API.</p>
         </div>
         <div class="footer">
           <p>&copy; 2025 NoTamperData</p>
@@ -163,7 +163,7 @@ export const emailUtils = {
    * Check if email service is configured
    */
   isEmailServiceConfigured: (): boolean => {
-    return !!(process.env.EMAIL_PROVIDER && process.env.EMAIL_API_KEY);
+    return !!(process.env.EMAIL_PROVIDER && process.env.EMAIL_Access_Token);
   },
 
   /**

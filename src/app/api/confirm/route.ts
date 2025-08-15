@@ -1,7 +1,7 @@
 // src/app/api/confirm/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { ApiKeyManager } from '@/lib/ApiKeyManager';
-import { sendApiKeyEmail } from '@/lib/emailService';
+import { AccessTokenManager } from '@/lib/AccessTokenManager';
+import { sendAccessTokenEmail } from '@/lib/emailService';
 import dbConnect from '@/lib/mongodb';
 
 interface PaymentConfirmRequest {
@@ -59,17 +59,17 @@ export async function POST(request: NextRequest) {
     // Connect to database
     await dbConnect();
     
-    // Create API key using ApiKeyManager
-    const apiKeyResult = await ApiKeyManager.createApiKey(
+    // Create access token using AccessTokenManager
+    const accessTokenResult = await AccessTokenManager.createAccessToken(
       body.txHash,
       body.adaAmount
     );
     
-    if (!apiKeyResult.success) {
+    if (!accessTokenResult.success) {
       return NextResponse.json(
         { 
           success: false, 
-          error: apiKeyResult.error || 'Failed to create API key' 
+          error: accessTokenResult.error || 'Failed to create access token' 
         },
         { status: 500 }
       );
@@ -78,29 +78,29 @@ export async function POST(request: NextRequest) {
     let emailSent = false;
     
     // Send email if provided
-    if (body.email && apiKeyResult.apiKey) {
+    if (body.email && accessTokenResult.accessToken) {
       try {
-        await sendApiKeyEmail(body.email, apiKeyResult.apiKey, {
+        await sendAccessTokenEmail(body.email, accessTokenResult.accessToken, {
           adaAmount: body.adaAmount,
           tokenAmount: body.tokenAmount || body.adaAmount, // 1:1 ratio
           transactionHash: body.txHash
         });
         emailSent = true;
-        console.log('API key sent to email:', body.email);
+        console.log('Access token sent to email:', body.email);
       } catch (emailError) {
         console.error('Failed to send email:', emailError);
         // Don't fail the request if email fails
-        // API key is still created successfully
+        // Access token is still created successfully
       }
     }
     
     // Return success response
     return NextResponse.json({
       success: true,
-      apiKey: apiKeyResult.apiKey,
+      accessToken: accessTokenResult.accessToken,
       tokenAmount: body.tokenAmount || body.adaAmount,
       emailSent,
-      message: 'API key created successfully',
+      message: 'Access token created successfully',
       network: {
         id: body.networkId || 0,
         name: body.networkId === 1 ? 'Mainnet' : 'Preview Testnet'
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { 
             success: false, 
-            error: 'Transaction already processed. Please check your existing API keys.' 
+            error: 'Transaction already processed. Please check your existing access tokens.' 
           },
           { status: 409 }
         );
@@ -150,13 +150,13 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const txHash = searchParams.get('txHash');
-    const apiKey = searchParams.get('apiKey');
+    const accessToken = searchParams.get('accessToken');
     
-    if (!txHash && !apiKey) {
+    if (!txHash && !accessToken) {
       return NextResponse.json(
         { 
           success: false, 
-          error: 'Either txHash or apiKey parameter is required' 
+          error: 'Either txHash or accessToken parameter is required' 
         },
         { status: 400 }
       );
@@ -165,15 +165,15 @@ export async function GET(request: NextRequest) {
     // Connect to database
     await dbConnect();
     
-    if (apiKey) {
-      // Get API key status
-      const status = await ApiKeyManager.getApiKeyStatus(apiKey);
+    if (accessToken) {
+      // Get access token status
+      const status = await AccessTokenManager.getAccessTokenStatus(accessToken);
       
       if (!status.success) {
         return NextResponse.json(
           { 
             success: false, 
-            error: status.error || 'API key not found' 
+            error: status.error || 'Access token not found' 
           },
           { status: 404 }
         );
@@ -185,8 +185,8 @@ export async function GET(request: NextRequest) {
       });
     }
     
-    // For transaction hash lookup, we would need to add a method to ApiKeyManager
-    // to find API key by transaction hash
+    // For transaction hash lookup, we would need to add a method to AccessTokenManager
+    // to find access token by transaction hash
     return NextResponse.json(
       { 
         success: false, 

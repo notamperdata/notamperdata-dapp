@@ -59,7 +59,7 @@ const AccessPage: React.FC = () => {
   const [processingPayment, setProcessingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
-  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [accessToken, setaccessToken] = useState<string | null>(null);
 
   // Predefined token amounts
   const tokenOptions = [
@@ -186,7 +186,7 @@ const AccessPage: React.FC = () => {
     setStep('connect');
     setPaymentError(null);
     setTransactionHash(null);
-    setApiKey(null);
+    setaccessToken(null);
   };
 
   // Update payment details
@@ -278,8 +278,8 @@ const AccessPage: React.FC = () => {
       // Wait for transaction confirmation (simplified - in production, use proper confirmation)
       await new Promise(resolve => setTimeout(resolve, 5000));
       
-      // Create API key by calling the API endpoint
-      const apiKeyResponse = await fetch('/api/confirm', {
+      // Create access token by calling the API endpoint
+      const accessTokenResponse = await fetch('/api/confirm', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -293,22 +293,22 @@ const AccessPage: React.FC = () => {
         })
       });
 
-      if (!apiKeyResponse.ok) {
-        const errorData = await apiKeyResponse.json();
-        throw new Error(errorData.error || 'Failed to create API key');
+      if (!accessTokenResponse.ok) {
+        const errorData = await accessTokenResponse.json();
+        throw new Error(errorData.error || 'Failed to create access token');
       }
 
-      const apiKeyData = await apiKeyResponse.json();
+      const accessTokenData = await accessTokenResponse.json();
       
-      if (!apiKeyData.success || !apiKeyData.apiKey) {
-        throw new Error('Failed to generate API key');
+      if (!accessTokenData.success || !accessTokenData.accessToken) {
+        throw new Error('Failed to generate access token');
       }
       
-      setApiKey(apiKeyData.apiKey);
+      setaccessToken(accessTokenData.accessToken);
       
       // Email notification is handled by the API endpoint
-      if (paymentDetails.email && apiKeyData.emailSent) {
-        console.log('API key sent to email:', paymentDetails.email);
+      if (paymentDetails.email && accessTokenData.emailSent) {
+        console.log('access token sent to email:', paymentDetails.email);
       }
       
       setStep('complete');
@@ -580,7 +580,7 @@ const AccessPage: React.FC = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <p className="text-sm text-gray-500 mt-1">
-                      We'll send your API key to this email for safekeeping
+                      We'll send your access token to this email for safekeeping
                     </p>
                   </div>
 
@@ -660,7 +660,7 @@ const AccessPage: React.FC = () => {
                         <p className="font-medium mb-1">Important:</p>
                         <ul className="list-disc list-inside space-y-1">
                           <li>Transaction will be processed on {networkName}</li>
-                          <li>API key will be generated after payment confirmation</li>
+                          <li>access token will be generated after payment confirmation</li>
                           <li>Each token allows 1 hash storage on the blockchain</li>
                           <li>Tokens never expire</li>
                         </ul>
@@ -708,18 +708,18 @@ const AccessPage: React.FC = () => {
               )}
 
               {/* Step 5: Complete */}
-              {step === 'complete' && apiKey && (
+              {step === 'complete' && accessToken && (
                 <div className="text-center">
                   <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
                   <h2 className="text-2xl font-bold text-gray-900 mb-4">Payment Successful!</h2>
                   
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-                    <p className="text-green-800 font-medium mb-2">Your API Key:</p>
+                    <p className="text-green-800 font-medium mb-2">Your access token:</p>
                     <code className="block bg-white px-3 py-2 rounded border border-green-300 text-sm font-mono break-all">
-                      {apiKey}
+                      {accessToken}
                     </code>
                     <button
-                      onClick={() => navigator.clipboard.writeText(apiKey)}
+                      onClick={() => navigator.clipboard.writeText(accessToken)}
                       className="mt-2 text-sm text-green-700 hover:text-green-800"
                     >
                       Copy to Clipboard
@@ -772,7 +772,7 @@ const AccessPage: React.FC = () => {
                 <Zap className="w-12 h-12 text-yellow-500 mx-auto mb-3" />
                 <h3 className="font-bold text-gray-900 mb-2">Instant Access</h3>
                 <p className="text-sm text-gray-600">
-                  API key generated immediately after payment confirmation
+                  access token generated immediately after payment confirmation
                 </p>
               </div>
               <div className="bg-white/70 backdrop-blur-sm rounded-lg p-6 text-center">

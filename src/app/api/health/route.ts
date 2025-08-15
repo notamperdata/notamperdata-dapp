@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 /**
  * Health check endpoint for API connectivity and authentication testing.
- * Returns server status and validates API key if provided.
+ * Returns server status and validates access token if provided.
  */
 
 interface HealthResponse {
@@ -26,26 +26,26 @@ interface HealthResponse {
 const serverStartTime = Date.now();
 
 /**
- * Validate API key (placeholder implementation)
- * In production, this would check against your API key database/service
+ * Validate access token (placeholder implementation)
+ * In production, this would check against your access token database/service
  */
-function validateApiKey(apiKey: string): { valid: boolean; message: string } {
-  if (!apiKey) {
-    return { valid: false, message: 'No API key provided' };
+function validateaccessToken(accessToken: string): { valid: boolean; message: string } {
+  if (!accessToken) {
+    return { valid: false, message: 'No access token provided' };
   }
 
-  // Placeholder validation - replace with your actual API key validation logic
+  // Placeholder validation - replace with your actual access token validation logic
   // For now, we'll accept any key that starts with 'ak_' and is at least 20 characters
-  if (apiKey.startsWith('ak_') && apiKey.length >= 20) {
-    return { valid: true, message: 'API key is valid' };
+  if (accessToken.startsWith('ak_') && accessToken.length >= 20) {
+    return { valid: true, message: 'access token is valid' };
   }
 
   // Check for test/demo keys
-  if (apiKey === 'demo_key_12345' || apiKey === 'test_key_67890') {
-    return { valid: true, message: 'Demo API key accepted' };
+  if (accessToken === 'demo_key_12345' || accessToken === 'test_key_67890') {
+    return { valid: true, message: 'Demo access token accepted' };
   }
 
-  return { valid: false, message: 'Invalid API key format or unauthorized key' };
+  return { valid: false, message: 'Invalid access token format or unauthorized key' };
 }
 
 /**
@@ -71,28 +71,28 @@ export async function GET(request: NextRequest) {
   try {
     const startTime = Date.now();
     
-    // Extract API key from headers
+    // Extract access token from headers
     const authHeader = request.headers.get('authorization');
-    const apiKeyHeader = request.headers.get('x-api-key');
+    const accessTokenHeader = request.headers.get('x-access-token');
     
-    let apiKey: string | null = null;
+    let accessToken: string | null = null;
     
-    // Try to extract API key from Authorization header (Bearer token)
+    // Try to extract access token from Authorization header (Bearer token)
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      apiKey = authHeader.substring(7);
+      accessToken = authHeader.substring(7);
     }
-    // Fallback to X-API-Key header
-    else if (apiKeyHeader) {
-      apiKey = apiKeyHeader;
+    // Fallback to X-access-token header
+    else if (accessTokenHeader) {
+      accessToken = accessTokenHeader;
     }
 
     // Test database connection
     const dbStatus = await testDatabaseConnection();
     
-    // Validate API key if provided
+    // Validate access token if provided
     let authStatus: { validated: boolean; message: string } | undefined;
-    if (apiKey) {
-      const validation = validateApiKey(apiKey);
+    if (accessToken) {
+      const validation = validateaccessToken(accessToken);
       authStatus = {
         validated: validation.valid,
         message: validation.message
@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
       uptime: uptime
     };
 
-    // Add authentication status if API key was provided
+    // Add authentication status if access token was provided
     if (authStatus) {
       response.authentication = authStatus;
     }
@@ -125,12 +125,12 @@ export async function GET(request: NextRequest) {
       statusCode = 503;
     }
     
-    // If API key was provided but invalid, return 401 (Unauthorized)
+    // If access token was provided but invalid, return 401 (Unauthorized)
     if (authStatus && !authStatus.validated) {
       statusCode = 401;
     }
     
-    // If API key was provided but lacks permissions, you could return 403
+    // If access token was provided but lacks permissions, you could return 403
     // This is where you'd add role-based checks in production
 
     return NextResponse.json(response, { 
@@ -166,27 +166,27 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const { includeDetailed = false } = body;
     
-    // Extract API key
+    // Extract access token
     const authHeader = request.headers.get('authorization');
-    const apiKeyHeader = request.headers.get('x-api-key');
+    const accessTokenHeader = request.headers.get('x-access-token');
     
-    let apiKey: string | null = null;
+    let accessToken: string | null = null;
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      apiKey = authHeader.substring(7);
-    } else if (apiKeyHeader) {
-      apiKey = apiKeyHeader;
+      accessToken = authHeader.substring(7);
+    } else if (accessTokenHeader) {
+      accessToken = accessTokenHeader;
     }
 
-    if (!apiKey) {
+    if (!accessToken) {
       return NextResponse.json({
         status: 'error',
-        message: 'API key is required for detailed health check',
+        message: 'access token is required for detailed health check',
         timestamp: new Date().toISOString()
       }, { status: 401 });
     }
 
-    // Validate API key
-    const validation = validateApiKey(apiKey);
+    // Validate access token
+    const validation = validateaccessToken(accessToken);
     if (!validation.valid) {
       return NextResponse.json({
         status: 'error',

@@ -1,12 +1,12 @@
-// src/app/api/api-key-status/route.ts
+// src/app/api/access-token-status/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { ApiKeyManager } from '@/lib/ApiKeyManager';
+import { accessTokenManager } from '@/lib/accessTokenManager';
 import dbConnect from '@/lib/mongodb';
 
-interface ApiKeyStatusResponse {
+interface accessTokenStatusResponse {
   success: boolean;
   data?: {
-    apiKeyId: string;
+    accessTokenId: string;
     adaAmount: number;
     tokenAmount: number;
     remainingTokens: number;
@@ -21,73 +21,73 @@ interface ApiKeyStatusResponse {
 }
 
 /**
- * GET /api/api-key-status
+ * GET /api/access-token-status
  * 
- * Check API key details and usage statistics
+ * Check access token details and usage statistics
  * Returns: token balance, usage stats, creation date
  * Used for monitoring token consumption
  * 
  * Query parameters:
- * - apiKey: The API key to check (required)
+ * - accessToken: The access token to check (required)
  * 
  * Headers (alternative):
- * - Authorization: Bearer {apiKey}
- * - X-API-Key: {apiKey}
+ * - Authorization: Bearer {accessToken}
+ * - X-access-token: {accessToken}
  */
-export async function GET(request: NextRequest): Promise<NextResponse<ApiKeyStatusResponse>> {
+export async function GET(request: NextRequest): Promise<NextResponse<accessTokenStatusResponse>> {
   try {
-    console.log('📊 API Key Status - Processing request');
+    console.log('📊 access token Status - Processing request');
 
     // Connect to database
     await dbConnect();
 
-    // Extract API key from multiple sources
+    // Extract access token from multiple sources
     const url = new URL(request.url);
-    let apiKey = url.searchParams.get('apiKey');
+    let accessToken = url.searchParams.get('accessToken');
 
     // If not in query params, check headers
-    if (!apiKey) {
+    if (!accessToken) {
       const authHeader = request.headers.get('authorization');
-      const apiKeyHeader = request.headers.get('x-api-key');
+      const accessTokenHeader = request.headers.get('x-access-token');
       
       if (authHeader && authHeader.startsWith('Bearer ')) {
-        apiKey = authHeader.substring(7);
-      } else if (apiKeyHeader) {
-        apiKey = apiKeyHeader;
+        accessToken = authHeader.substring(7);
+      } else if (accessTokenHeader) {
+        accessToken = accessTokenHeader;
       }
     }
 
-    // Validate API key presence
-    if (!apiKey) {
-      console.error('❌ No API key provided');
+    // Validate access token presence
+    if (!accessToken) {
+      console.error('❌ No access token provided');
       return NextResponse.json(
         { 
           success: false, 
-          error: 'API key is required. Provide via query parameter (?apiKey=...) or Authorization header.' 
+          error: 'access token is required. Provide via query parameter (?accessToken=...) or Authorization header.' 
         },
         { status: 400 }
       );
     }
 
-    // Validate API key format
-    if (!/^ak_[a-zA-Z0-9]{16}$/.test(apiKey)) {
-      console.error('❌ Invalid API key format');
+    // Validate access token format
+    if (!/^ak_[a-zA-Z0-9]{16}$/.test(accessToken)) {
+      console.error('❌ Invalid access token format');
       return NextResponse.json(
         { 
           success: false, 
-          error: 'Invalid API key format. Expected format: ak_[16 alphanumeric characters]' 
+          error: 'Invalid access token format. Expected format: ak_[16 alphanumeric characters]' 
         },
         { status: 400 }
       );
     }
 
-    console.log(`🔍 Checking status for API key: ${apiKey}`);
+    console.log(`🔍 Checking status for access token: ${accessToken}`);
 
-    // Get API key status
-    const statusResult = await ApiKeyManager.getApiKeyStatus(apiKey);
+    // Get access token status
+    const statusResult = await accessTokenManager.getaccessTokenStatus(accessToken);
 
     if (!statusResult.success) {
-      console.error(`❌ Failed to get API key status: ${statusResult.error}`);
+      console.error(`❌ Failed to get access token status: ${statusResult.error}`);
       
       // Return 404 for not found, 400 for other client errors
       const statusCode = statusResult.error?.includes('not found') ? 404 : 400;
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<ApiKeyStat
       return NextResponse.json(
         { 
           success: false, 
-          error: statusResult.error || 'Failed to retrieve API key status' 
+          error: statusResult.error || 'Failed to retrieve access token status' 
         },
         { status: statusCode }
       );
@@ -113,13 +113,13 @@ export async function GET(request: NextRequest): Promise<NextResponse<ApiKeyStat
       (Date.now() - keyData.createdAt.getTime()) / (1000 * 60 * 60 * 24)
     );
 
-    console.log(`✅ API key status retrieved: ${keyData.remainingTokens}/${keyData.tokenAmount} tokens remaining`);
+    console.log(`✅ access token status retrieved: ${keyData.remainingTokens}/${keyData.tokenAmount} tokens remaining`);
 
     // Return detailed status information
     return NextResponse.json({
       success: true,
       data: {
-        apiKeyId: keyData.apiKeyId,
+        accessTokenId: keyData.accessTokenId,
         adaAmount: keyData.adaAmount,
         tokenAmount: keyData.tokenAmount,
         remainingTokens: keyData.remainingTokens,
@@ -133,14 +133,14 @@ export async function GET(request: NextRequest): Promise<NextResponse<ApiKeyStat
     });
 
   } catch (error) {
-    console.error('💥 API key status error:', error);
+    console.error('💥 access token status error:', error);
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     
     return NextResponse.json(
       { 
         success: false,
-        error: 'Internal server error while checking API key status',
+        error: 'Internal server error while checking access token status',
         message: errorMessage
       },
       { status: 500 }
@@ -149,38 +149,38 @@ export async function GET(request: NextRequest): Promise<NextResponse<ApiKeyStat
 }
 
 /**
- * POST /api/api-key-status
+ * POST /api/access-token-status
  * 
- * Alternative endpoint that accepts API key in request body
+ * Alternative endpoint that accepts access token in request body
  * Useful for applications that prefer POST over GET with sensitive data
  */
-export async function POST(request: NextRequest): Promise<NextResponse<ApiKeyStatusResponse>> {
+export async function POST(request: NextRequest): Promise<NextResponse<accessTokenStatusResponse>> {
   try {
-    console.log('📊 API Key Status (POST) - Processing request');
+    console.log('📊 access token Status (POST) - Processing request');
 
     // Connect to database
     await dbConnect();
 
     // Parse request body
     const requestData = await request.json();
-    const { apiKey } = requestData;
+    const { accessToken } = requestData;
 
-    // Validate API key presence
-    if (!apiKey) {
-      console.error('❌ No API key provided in request body');
+    // Validate access token presence
+    if (!accessToken) {
+      console.error('❌ No access token provided in request body');
       return NextResponse.json(
         { 
           success: false, 
-          error: 'API key is required in request body' 
+          error: 'access token is required in request body' 
         },
         { status: 400 }
       );
     }
 
-    // Create a new request object with the API key as a query parameter
+    // Create a new request object with the access token as a query parameter
     // and delegate to GET method for consistent processing
     const url = new URL(request.url);
-    url.searchParams.set('apiKey', apiKey);
+    url.searchParams.set('accessToken', accessToken);
     
     const getRequest = new NextRequest(url.toString(), {
       method: 'GET',
@@ -190,14 +190,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiKeySta
     return await GET(getRequest);
 
   } catch (error) {
-    console.error('💥 API key status (POST) error:', error);
+    console.error('💥 access token status (POST) error:', error);
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     
     return NextResponse.json(
       { 
         success: false,
-        error: 'Internal server error while checking API key status',
+        error: 'Internal server error while checking access token status',
         message: errorMessage
       },
       { status: 500 }
@@ -206,9 +206,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiKeySta
 }
 
 /**
- * OPTIONS /api/api-key-status
+ * OPTIONS /api/access-token-status
  * 
- * CORS support for API key status endpoint
+ * CORS support for access token status endpoint
  */
 export async function OPTIONS(): Promise<NextResponse> {
   return new NextResponse(null, {
@@ -216,7 +216,7 @@ export async function OPTIONS(): Promise<NextResponse> {
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Key'
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-access-token'
     }
   });
 }

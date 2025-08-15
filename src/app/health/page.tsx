@@ -189,7 +189,7 @@ export default function HealthPage() {
 
           <div className="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 rounded-md">
             <p className="text-blue-700 text-sm">
-              <strong>Note:</strong> POST requests to /api/health require a valid API key for detailed information.
+              <strong>Note:</strong> POST requests to /api/health require a valid access token for detailed information.
             </p>
           </div>
         </div>

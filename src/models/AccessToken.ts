@@ -1,13 +1,13 @@
-// src/models/ApiKey.ts
+// src/models/accessToken.ts
 import mongoose, { Document, Schema, Model } from 'mongoose';
 
-export interface IApiKey extends Document {
-  apiKeyId: string;        // Format: ak_randomstring (16 chars after ak_)
+export interface IaccessToken extends Document {
+  accessTokenId: string;        // Format: ak_randomstring (16 chars after ak_)
   txHash: string;          // Cardano transaction hash (64 hex chars)
   adaAmount: number;       // ADA amount paid (decimal)
   tokenAmount: number;     // Total tokens purchased (integer)
   remainingTokens: number; // Tokens remaining (integer)
-  isActive: boolean;       // Whether API key is active
+  isActive: boolean;       // Whether access token is active
   createdAt: Date;         // Creation timestamp
   lastUsedAt?: Date;       // Last usage timestamp
   
@@ -17,8 +17,8 @@ export interface IApiKey extends Document {
 }
 
 // Interface for static methods
-export interface IApiKeyModel extends Model<IApiKey> {
-  findActiveKey(apiKeyId: string): Promise<IApiKey | null>;
+export interface IaccessTokenModel extends Model<IaccessToken> {
+  findActiveKey(accessTokenId: string): Promise<IaccessToken | null>;
   getUsageStats(): Promise<Array<{
     _id: null;
     totalKeys: number;
@@ -29,8 +29,8 @@ export interface IApiKeyModel extends Model<IApiKey> {
   }>>;
 }
 
-const ApiKeySchema = new Schema<IApiKey>({
-  apiKeyId: {
+const accessTokenSchema = new Schema<IaccessToken>({
+  accessTokenId: {
     type: String,
     required: true,
     unique: true,
@@ -39,7 +39,7 @@ const ApiKeySchema = new Schema<IApiKey>({
       validator: function(v: string) {
         return /^ak_[a-zA-Z0-9]{16}$/.test(v);
       },
-      message: 'API key must be in format ak_[16 alphanumeric characters]'
+      message: 'access token must be in format ak_[16 alphanumeric characters]'
     }
   },
   txHash: {
@@ -104,26 +104,26 @@ const ApiKeySchema = new Schema<IApiKey>({
 });
 
 // Compound indexes for performance optimization
-ApiKeySchema.index({ apiKeyId: 1, isActive: 1 });
-ApiKeySchema.index({ txHash: 1, isActive: 1 });
-ApiKeySchema.index({ remainingTokens: 1, isActive: 1 });
-ApiKeySchema.index({ createdAt: -1 }); // For chronological queries
+accessTokenSchema.index({ accessTokenId: 1, isActive: 1 });
+accessTokenSchema.index({ txHash: 1, isActive: 1 });
+accessTokenSchema.index({ remainingTokens: 1, isActive: 1 });
+accessTokenSchema.index({ createdAt: -1 }); // For chronological queries
 
 // Pre-save middleware to ensure remainingTokens <= tokenAmount
-ApiKeySchema.pre('save', function(next) {
+accessTokenSchema.pre('save', function(next) {
   if (this.remainingTokens > this.tokenAmount) {
     this.remainingTokens = this.tokenAmount;
   }
   next();
 });
 
-// Instance method to check if API key has tokens
-ApiKeySchema.methods.hasTokens = function(): boolean {
+// Instance method to check if access token has tokens
+accessTokenSchema.methods.hasTokens = function(): boolean {
   return this.isActive && this.remainingTokens > 0;
 };
 
 // Instance method to consume tokens
-ApiKeySchema.methods.consumeTokens = function(amount: number = 1): boolean {
+accessTokenSchema.methods.consumeTokens = function(amount: number = 1): boolean {
   if (!this.hasTokens() || this.remainingTokens < amount) {
     return false;
   }
@@ -133,17 +133,17 @@ ApiKeySchema.methods.consumeTokens = function(amount: number = 1): boolean {
   return true;
 };
 
-// Static method to find active API key
-ApiKeySchema.statics.findActiveKey = function(apiKeyId: string) {
+// Static method to find active access token
+accessTokenSchema.statics.findActiveKey = function(accessTokenId: string) {
   return this.findOne({
-    apiKeyId,
+    accessTokenId,
     isActive: true,
     remainingTokens: { $gt: 0 }
   });
 };
 
 // Static method to get usage statistics
-ApiKeySchema.statics.getUsageStats = function() {
+accessTokenSchema.statics.getUsageStats = function() {
   return this.aggregate([
     {
       $group: {
@@ -167,7 +167,7 @@ ApiKeySchema.statics.getUsageStats = function() {
 };
 
 // Check if the model is already defined to prevent overwriting
-const ApiKey = (mongoose.models.ApiKey as IApiKeyModel) || 
-  mongoose.model<IApiKey, IApiKeyModel>('ApiKey', ApiKeySchema);
+const accessToken = (mongoose.models.accessToken as IaccessTokenModel) || 
+  mongoose.model<IaccessToken, IaccessTokenModel>('accessToken', accessTokenSchema);
 
-export default ApiKey;
+export default accessToken;

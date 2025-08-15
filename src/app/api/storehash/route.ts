@@ -14,7 +14,7 @@ import {
   loadNoTamperDataValidator,
   NoTamperData_CONSTANTS
 } from '@/lib/contract';
-import { ApiKeyManager } from '@/lib/ApiKeyManager';
+import { accessTokenManager } from '@/lib/accessTokenManager';
 import dbConnect from '@/lib/mongodb';
 
 // Initialize Lucid with dynamic network support
@@ -40,7 +40,7 @@ interface StoreHashRequest {
   hash: string;
   formId: string;
   responseId: string;
-  apiKey: string;
+  accessToken: string;
   networkId?: number; // Optional, defaults to testnet if not provided
 }
 
@@ -134,11 +134,11 @@ export async function POST(request: NextRequest) {
     const body: StoreHashRequest = await request.json();
     
     // Validate required fields
-    if (!body.hash || !body.formId || !body.responseId || !body.apiKey) {
+    if (!body.hash || !body.formId || !body.responseId || !body.accessToken) {
       return NextResponse.json(
         { 
           success: false, 
-          error: 'Missing required fields: hash, formId, responseId, and apiKey are required' 
+          error: 'Missing required fields: hash, formId, responseId, and accessToken are required' 
         },
         { status: 400 }
       );
@@ -162,28 +162,28 @@ export async function POST(request: NextRequest) {
     // Connect to database
     await dbConnect();
     
-    // Verify API key and check remaining tokens
-    const validationResult = await ApiKeyManager.validateAndConsumeToken(body.apiKey, 0);
+    // Verify access token and check remaining tokens
+    const validationResult = await accessTokenManager.validateAndConsumeToken(body.accessToken, 0);
     
-    // First check if the API key is valid without consuming tokens
+    // First check if the access token is valid without consuming tokens
     if (!validationResult.valid) {
       return NextResponse.json(
         { 
           success: false, 
-          error: validationResult.error || 'Invalid API key' 
+          error: validationResult.error || 'Invalid access token' 
         },
         { status: 401 }
       );
     }
     
-    // Get the API key status to check remaining tokens
-    const statusResult = await ApiKeyManager.getApiKeyStatus(body.apiKey);
+    // Get the access token status to check remaining tokens
+    const statusResult = await accessTokenManager.getaccessTokenStatus(body.accessToken);
     
     if (!statusResult.success || !statusResult.data) {
       return NextResponse.json(
         { 
           success: false, 
-          error: 'Failed to retrieve API key status' 
+          error: 'Failed to retrieve access token status' 
         },
         { status: 500 }
       );
@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
     });
     
     // Now consume the token after successful blockchain storage
-    const consumeResult = await ApiKeyManager.validateAndConsumeToken(body.apiKey, 1);
+    const consumeResult = await accessTokenManager.validateAndConsumeToken(body.accessToken, 1);
     
     if (!consumeResult.valid) {
       console.warn('Failed to consume token after blockchain storage:', consumeResult.error);
@@ -334,7 +334,7 @@ export async function GET(request: NextRequest) {
         verify: '/api/verify'
       },
       requiredFields: {
-        POST: ['hash', 'formId', 'responseId', 'apiKey'],
+        POST: ['hash', 'formId', 'responseId', 'accessToken'],
         optionalFields: ['networkId']
       },
       documentation: 'https://docs.notamperdata.com/api'
