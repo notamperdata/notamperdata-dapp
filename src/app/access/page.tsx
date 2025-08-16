@@ -596,7 +596,7 @@ const AccessPageComponent: React.FC = () => {
                   </div>
 
                   {/* Email (Optional) */}
-                  <div className="mb-6">
+                  {/* <div className="mb-6">
                     <label className="block text-sm font-semibold text-gray-800 mb-3">
                       Email Address (Optional)
                     </label>
@@ -610,7 +610,7 @@ const AccessPageComponent: React.FC = () => {
                     <p className="text-sm text-gray-600 mt-2">
                       We&apos;ll send your access token to this email for safekeeping
                     </p>
-                  </div>
+                  </div> */}
 
                   {/* Payment Error */}
                   {paymentError && (
