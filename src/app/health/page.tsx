@@ -1,9 +1,9 @@
-"use client";
+// src/app/api/health/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest, getAccessTokenInfo, getCorsHeaders } from '@/lib/authMiddleware';
+import dbConnect from '@/lib/mongodb';
 
-import { useState, useEffect } from 'react';
-import { LoadingSpinner } from '@/components/ui/loading-spinner';
-
-interface HealthData {
+interface HealthResponse {
   status: 'healthy' | 'error';
   timestamp: string;
   version: string;
@@ -12,188 +12,275 @@ interface HealthData {
     connected: boolean;
     latency?: number;
   };
+  authentication?: {
+    validated: boolean;
+    message: string;
+    remainingTokens?: number;
+    tokenInfo?: any;
+  };
   uptime: number;
+  processingTime?: number;
 }
 
-export default function HealthPage() {
-  const [healthData, setHealthData] = useState<HealthData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastChecked, setLastChecked] = useState<Date | null>(null);
+// Store server start time for uptime calculation
+const serverStartTime = Date.now();
 
-  const checkHealth = async () => {
-    setLoading(true);
-    setError(null);
+/**
+ * Test database connectivity
+ */
+async function testDatabaseConnection(): Promise<{ connected: boolean; latency?: number }> {
+  try {
+    const startTime = Date.now();
     
-    try {
-      const response = await fetch('/api/health');
-      const data = await response.json();
-      
-      setHealthData(data);
-      setLastChecked(new Date());
-    } catch (err) {
-      setError('Failed to fetch health status');
-      console.error('Health check error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    checkHealth();
+    // Try to connect to the database
+    await dbConnect();
     
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(checkHealth, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    const latency = Date.now() - startTime;
+    return { connected: true, latency };
+  } catch (error) {
+    console.error('Database health check failed:', error);
+    return { connected: false };
+  }
+}
 
-  const formatUptime = (seconds: number): string => {
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
+/**
+ * GET /api/health
+ * 
+ * Health check endpoint with optional access token validation
+ * Supports access token in headers or query parameters
+ */
+export async function GET(request: NextRequest): Promise<NextResponse<HealthResponse>> {
+  const startTime = Date.now();
+  
+  try {
+    console.log('🏥 Health check - Processing request');
 
-    if (days > 0) {
-      return `${days}d ${hours}h ${minutes}m`;
-    } else if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    } else if (minutes > 0) {
-      return `${minutes}m ${secs}s`;
-    } else {
-      return `${secs}s`;
+    // Test database connection
+    const dbStatus = await testDatabaseConnection();
+    
+    // Authenticate request (optional - health check should work without auth)
+    const authResult = await authenticateRequest(request, {
+      required: false, // Auth is optional for health checks
+      consumeTokens: 0, // Don't consume tokens for health checks
+      allowDemoKeys: true // Allow demo keys for testing
+    });
+
+    const processingTime = Date.now() - startTime;
+    const uptime = Math.floor((Date.now() - serverStartTime) / 1000);
+
+    const response: HealthResponse = {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      version: '1.1.0',
+      environment: process.env.NODE_ENV || 'development',
+      database: dbStatus,
+      uptime: uptime,
+      processingTime: processingTime
+    };
+
+    // Add authentication info if access token was provided
+    if (authResult.accessToken) {
+      if (authResult.success) {
+        response.authentication = {
+          validated: true,
+          message: 'Access token is valid and active',
+          remainingTokens: authResult.remainingTokens
+        };
+        
+        // Get detailed token info if needed
+        if (authResult.remainingTokens !== undefined) {
+          const tokenInfo = await getAccessTokenInfo(request);
+          if (tokenInfo.success && tokenInfo.tokenInfo) {
+            response.authentication.tokenInfo = {
+              remainingTokens: tokenInfo.tokenInfo.remainingTokens,
+              tokenAmount: tokenInfo.tokenInfo.tokenAmount,
+              usedTokens: tokenInfo.tokenInfo.usedTokens,
+              isActive: tokenInfo.tokenInfo.isActive,
+              isDemo: tokenInfo.tokenInfo.isDemo || false
+            };
+          }
+        }
+      } else {
+        response.authentication = {
+          validated: false,
+          message: authResult.error || 'Access token validation failed'
+        };
+      }
     }
-  };
 
-  const getStatusBadge = (status: 'healthy' | 'error') => {
-    return status === 'healthy' 
-      ? 'bg-green-100 text-green-800 border-green-200' 
-      : 'bg-red-100 text-red-800 border-red-200';
-  };
+    // Determine response status code
+    let statusCode = 200;
+    
+    // If database is not connected, return 503 (Service Unavailable)
+    if (!dbStatus.connected) {
+      response.status = 'error';
+      statusCode = 503;
+    }
+    
+    // If access token was provided but invalid, return 401 (Unauthorized)
+    if (authResult.accessToken && !authResult.success) {
+      statusCode = authResult.statusCode || 401;
+    }
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-12 max-w-4xl">
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          <div className="flex items-center justify-between mb-8">
-            <h1 className="text-3xl font-bold text-[#0033AD]">System Health Status</h1>
-            <button
-              onClick={checkHealth}
-              disabled={loading}
-              className="bg-[#4285F4] text-white px-4 py-2 rounded-md hover:bg-[#366ac7] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? (
-                <LoadingSpinner className="h-4 w-4" />
-              ) : (
-                'Refresh'
-              )}
-            </button>
-          </div>
+    console.log(`✅ Health check completed in ${processingTime}ms`);
 
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-400 rounded-md">
-              <p className="text-red-700">{error}</p>
-            </div>
-          )}
+    return NextResponse.json(response, { 
+      status: statusCode,
+      headers: {
+        ...getCorsHeaders(),
+        'X-Response-Time': `${processingTime}ms`,
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+      }
+    });
 
-          {healthData && (
-            <div className="space-y-6">
-              {/* Overall Status */}
-              <div className="border rounded-lg p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-semibold text-gray-900">Overall Status</h2>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusBadge(healthData.status)}`}>
-                    {healthData.status === 'healthy' ? '✅ Healthy' : '❌ Error'}
-                  </span>
-                </div>
-                
-                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-600">Version</p>
-                    <p className="text-lg font-semibold text-gray-900">{healthData.version}</p>
-                  </div>
-                  
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-600">Environment</p>
-                    <p className="text-lg font-semibold text-gray-900 capitalize">{healthData.environment}</p>
-                  </div>
-                  
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-600">Uptime</p>
-                    <p className="text-lg font-semibold text-gray-900">{formatUptime(healthData.uptime)}</p>
-                  </div>
-                  
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-600">Last Checked</p>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {lastChecked ? lastChecked.toLocaleTimeString() : 'Never'}
-                    </p>
-                  </div>
-                </div>
-              </div>
+  } catch (error) {
+    console.error('💥 Health check error:', error);
+    
+    const processingTime = Date.now() - startTime;
+    
+    const errorResponse: HealthResponse = {
+      status: 'error',
+      timestamp: new Date().toISOString(),
+      version: '1.1.0',
+      environment: process.env.NODE_ENV || 'development',
+      uptime: Math.floor((Date.now() - serverStartTime) / 1000),
+      processingTime: processingTime
+    };
 
-              {/* Database Status */}
-              {healthData.database && (
-                <div className="border rounded-lg p-6">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Database</h2>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <span className={`w-3 h-3 rounded-full ${healthData.database.connected ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                      <span className={`font-medium ${healthData.database.connected ? 'text-green-600' : 'text-red-600'}`}>
-                        {healthData.database.connected ? 'Connected' : 'Disconnected'}
-                      </span>
-                    </div>
-                    {healthData.database.latency && (
-                      <span className="text-sm text-gray-600">
-                        Latency: {healthData.database.latency}ms
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
+    return NextResponse.json(errorResponse, { 
+      status: 500,
+      headers: {
+        ...getCorsHeaders(),
+        'X-Response-Time': `${processingTime}ms`,
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+      }
+    });
+  }
+}
 
+/**
+ * POST /api/health
+ * 
+ * Detailed health check that requires authentication
+ * Useful for testing access token validity and getting detailed system info
+ */
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const startTime = Date.now();
+  
+  try {
+    console.log('🏥 Detailed health check - Processing request');
 
-              {/* Timestamp */}
-              <div className="text-center text-sm text-gray-500">
-                Last updated: {new Date(healthData.timestamp).toLocaleString()}
-              </div>
-            </div>
-          )}
+    // Parse request body
+    const body = await request.json().catch(() => ({}));
+    const { includeDetailed = false, testTokenConsumption = false } = body;
+    
+    // Authenticate request (required for detailed health check)
+    const authResult = await authenticateRequest(request, {
+      required: true,
+      consumeTokens: testTokenConsumption ? 1 : 0, // Optionally test token consumption
+      allowDemoKeys: true
+    });
 
-          {loading && !healthData && (
-            <div className="flex items-center justify-center py-12">
-              <LoadingSpinner className="h-8 w-8 mr-3" />
-              <span className="text-gray-600">Checking system health...</span>
-            </div>
-          )}
-        </div>
+    if (!authResult.success) {
+      return NextResponse.json({
+        status: 'error',
+        message: authResult.error,
+        timestamp: new Date().toISOString()
+      }, { 
+        status: authResult.statusCode || 401,
+        headers: getCorsHeaders()
+      });
+    }
 
-        {/* Quick Test Section */}
-        <div className="mt-8 bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick API Test</h2>
-          <p className="text-gray-600 mb-4">
-            Use these endpoints to test the API connectivity from your applications:
-          </p>
-          
-          <div className="bg-gray-100 p-4 rounded-lg">
-            <div className="space-y-2 text-sm font-mono">
-              <div className="flex">
-                <span className="text-blue-600 mr-2">GET</span>
-                <span className="text-gray-800">/api/health</span>
-              </div>
-              <div className="flex">
-                <span className="text-green-600 mr-2">POST</span>
-                <span className="text-gray-800">/api/health</span>
-              </div>
-            </div>
-          </div>
+    // Perform detailed health checks
+    const dbStatus = await testDatabaseConnection();
+    
+    const processingTime = Date.now() - startTime;
+    
+    const detailedResponse = {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      version: '1.1.0',
+      environment: process.env.NODE_ENV || 'development',
+      authentication: {
+        validated: true,
+        message: 'Access token is valid and active',
+        remainingTokens: authResult.remainingTokens,
+        tokenConsumed: testTokenConsumption ? 1 : 0
+      },
+      database: dbStatus,
+      uptime: Math.floor((Date.now() - serverStartTime) / 1000),
+      processingTime: processingTime,
+      ...(includeDetailed && {
+        system: {
+          nodeVersion: process.version,
+          platform: process.platform,
+          memory: process.memoryUsage(),
+          pid: process.pid,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        },
+        api: {
+          rateLimit: 'No limits currently applied',
+          supportedMethods: ['GET', 'POST'],
+          authMethods: ['Authorization Bearer', 'X-access-token header', 'Request body'],
+          endpoints: [
+            '/api/health',
+            '/api/storehash',
+            '/api/verify',
+            '/api/access-token-status',
+            '/api/generate-api-key'
+          ]
+        }
+      })
+    };
 
-          <div className="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 rounded-md">
-            <p className="text-blue-700 text-sm">
-              <strong>Note:</strong> POST requests to /api/health require a valid access token for detailed information.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+    // Get detailed token info
+    const tokenInfo = await getAccessTokenInfo(request);
+    if (tokenInfo.success && tokenInfo.tokenInfo) {
+      detailedResponse.authentication = {
+        ...detailedResponse.authentication,
+        tokenInfo: tokenInfo.tokenInfo
+      };
+    }
+
+    console.log(`✅ Detailed health check completed in ${processingTime}ms`);
+
+    return NextResponse.json(detailedResponse, {
+      status: dbStatus.connected ? 200 : 503,
+      headers: {
+        ...getCorsHeaders(),
+        'X-Response-Time': `${processingTime}ms`
+      }
+    });
+
+  } catch (error) {
+    console.error('💥 Detailed health check error:', error);
+    
+    const processingTime = Date.now() - startTime;
+    
+    return NextResponse.json({
+      status: 'error',
+      message: 'Internal server error during detailed health check',
+      timestamp: new Date().toISOString(),
+      processingTime: processingTime
+    }, { 
+      status: 500,
+      headers: {
+        ...getCorsHeaders(),
+        'X-Response-Time': `${processingTime}ms`
+      }
+    });
+  }
+}
+
+/**
+ * OPTIONS /api/health
+ * 
+ * CORS preflight support
+ */
+export async function OPTIONS(): Promise<NextResponse> {
+  return new NextResponse(null, {
+    status: 200,
+    headers: getCorsHeaders()
+  });
 }

@@ -7,6 +7,7 @@
 ### Store a hash on blockchain with metadata
 POST http://localhost:3000/api/storehash
 Content-Type: application/json
+Authorization: Bearer ak_3358517c57db0bef
 
 {
   "hash": "fbc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b",
@@ -23,6 +24,7 @@ Content-Type: application/json
 ### Store another test hash
 POST http://localhost:3000/api/storehash
 Content-Type: application/json
+Authorization: Bearer ak_3358517c57db0bef
 
 {
   "hash": "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456",
@@ -33,6 +35,38 @@ Content-Type: application/json
     "version": "1.0",
     "formTitle": "User Feedback Survey",
     "responseCount": 128
+  }
+}
+
+### Store hash with minimal metadata
+POST http://localhost:3000/api/storehash
+Content-Type: application/json
+Authorization: Bearer ak_3358517c57db0bef
+
+{
+  "hash": "9876543210abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "metadata": {
+    "formId": "minimal_test_form",
+    "responseId": "minimal_response_001",
+    "timestamp": 1703270000000,
+    "version": "1.0"
+  }
+}
+
+### Store hash with specific network ID (mainnet)
+POST http://localhost:3000/api/storehash
+Content-Type: application/json
+Authorization: Bearer ak_3358517c57db0bef
+
+{
+  "hash": "mainnet_test_123456789abcdef0123456789abcdef0123456789abcdef012345678",
+  "networkId": 1,
+  "metadata": {
+    "formId": "mainnet_test_form",
+    "responseId": "mainnet_response_001",
+    "timestamp": 1703300000000,
+    "version": "1.0",
+    "network": "Mainnet"
   }
 }
 
@@ -49,7 +83,13 @@ Content-Type: application/json
 }
 
 ### Verify hash using GET method
-GET http://localhost:3000/api/verify?hash=ebc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b
+GET http://localhost:3000/api/verify?hash=fbc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b
+
+### Verify hash with additional parameters
+GET http://localhost:3000/api/verify?hash=fbc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b&formId=1FAIpQLSe_test_form_id&responseId=test_response_123
+
+### Verify hash with network specification
+GET http://localhost:3000/api/verify?hash=mainnet_test_123456789abcdef0123456789abcdef0123456789abcdef012345678&networkId=1
 
 ### Verify non-existent hash (should return verified: false)
 POST http://localhost:3000/api/verify
@@ -60,37 +100,223 @@ Content-Type: application/json
 }
 
 ###########################################
-# 3. ERROR TESTING
+# 3. ACCESS TOKEN MANAGEMENT
 ###########################################
 
-### Test invalid hash format
+### Check access token status
+GET http://localhost:3000/api/access-token-status
+Authorization: Bearer ak_3358517c57db0bef
+
+### Check access token status (POST method)
+POST http://localhost:3000/api/access-token-status
+Content-Type: application/json
+
+{
+  "accessToken": "ak_3358517c57db0bef"
+}
+
+### Generate new access token (after payment)
+POST http://localhost:3000/api/generate-api-key
+Content-Type: application/json
+
+{
+  "txHash": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+  "email": "user@example.com"
+}
+
+###########################################
+# 4. SYSTEM HEALTH & INFO
+###########################################
+
+### Health check endpoint (no auth required)
+GET http://localhost:3000/api/health
+
+### Health check with access token (provides token info)
+GET http://localhost:3000/api/health
+Authorization: Bearer ak_3358517c57db0bef
+
+### Detailed health check (POST with authentication required)
+POST http://localhost:3000/api/health
+Content-Type: application/json
+Authorization: Bearer ak_3358517c57db0bef
+
+{
+  "includeDetailed": true,
+  "testTokenConsumption": false
+}
+
+### Test token consumption during health check
+POST http://localhost:3000/api/health
+Content-Type: application/json
+Authorization: Bearer ak_3358517c57db0bef
+
+{
+  "includeDetailed": true,
+  "testTokenConsumption": true
+}
+
+###########################################
+# 5. ERROR TESTING
+###########################################
+
+### Test hash storage without access token (should fail with 401)
 POST http://localhost:3000/api/storehash
 Content-Type: application/json
+
+{
+  "hash": "fbc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b",
+  "metadata": {
+    "formId": "unauthorized_test",
+    "responseId": "test_response_123",
+    "timestamp": 1703250000000,
+    "version": "1.0"
+  }
+}
+
+### Test with invalid access token (should fail with 401)
+POST http://localhost:3000/api/storehash
+Content-Type: application/json
+Authorization: Bearer invalid_token_12345
+
+{
+  "hash": "fbc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b",
+  "metadata": {
+    "formId": "invalid_token_test",
+    "responseId": "test_response_123",
+    "timestamp": 1703250000000,
+    "version": "1.0"
+  }
+}
+
+### Test with malformed access token (should fail with 401)
+POST http://localhost:3000/api/storehash
+Content-Type: application/json
+Authorization: Bearer wrong_format_token
+
+{
+  "hash": "fbc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b",
+  "metadata": {
+    "formId": "malformed_token_test",
+    "responseId": "test_response_123",
+    "timestamp": 1703250000000,
+    "version": "1.0"
+  }
+}
+
+### Test invalid hash format (should fail with 400)
+POST http://localhost:3000/api/storehash
+Content-Type: application/json
+Authorization: Bearer ak_3358517c57db0bef
 
 {
   "hash": "invalid_hash",
   "metadata": {
     "formId": "test_form",
-    "responseId": "test_response"
+    "responseId": "test_response",
+    "timestamp": 1703250000000,
+    "version": "1.0"
   }
 }
 
-### Test missing metadata
+### Test missing hash field (should fail with 400)
 POST http://localhost:3000/api/storehash
 Content-Type: application/json
+Authorization: Bearer ak_3358517c57db0bef
 
 {
-  "hash": "ebc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b",
   "metadata": {
     "formId": "test_form",
+    "responseId": "test_response",
     "timestamp": 1703270000000,
     "version": "1.0"
   }
 }
 
+### Test invalid network ID (should fail with 400)
+POST http://localhost:3000/api/storehash
+Content-Type: application/json
+Authorization: Bearer ak_3358517c57db0bef
+
+{
+  "hash": "fbc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b",
+  "networkId": 99,
+  "metadata": {
+    "formId": "invalid_network_test",
+    "responseId": "test_response_123",
+    "timestamp": 1703250000000,
+    "version": "1.0"
+  }
+}
+
+### Test with insufficient tokens (should fail with 402)
+### Note: This will only work if the access token actually has 0 tokens
+POST http://localhost:3000/api/storehash
+Content-Type: application/json
+Authorization: Bearer ak_0000000000000000
+
+{
+  "hash": "fbc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b",
+  "metadata": {
+    "formId": "insufficient_tokens_test",
+    "responseId": "test_response_123",
+    "timestamp": 1703250000000,
+    "version": "1.0"
+  }
+}
+
 ###########################################
-# 4. SYSTEM HEALTH
+# 6. DEVELOPMENT & DEBUG
 ###########################################
 
-### Health check endpoint
-GET http://localhost:3000/api/health
+### Test with demo access token (if allowed)
+POST http://localhost:3000/api/health
+Content-Type: application/json
+Authorization: Bearer demo_key_12345
+
+{
+  "includeDetailed": true,
+  "testTokenConsumption": false
+}
+
+### Get API endpoint information
+GET http://localhost:3000/api/storehash
+
+### Get API endpoint information for verification
+GET http://localhost:3000/api/verify
+
+### Test CORS preflight request
+OPTIONS http://localhost:3000/api/storehash
+
+### Test CORS preflight for health endpoint
+OPTIONS http://localhost:3000/api/health
+
+###########################################
+# 7. PRODUCTION ENDPOINTS
+# (Replace localhost:3000 with your production URL)
+###########################################
+
+### Production health check
+GET https://NoTamperData.vercel.app/api/health
+
+### Production hash storage
+POST https://NoTamperData.vercel.app/api/storehash
+Content-Type: application/json
+Authorization: Bearer ak_3358517c57db0bef
+
+{
+  "hash": "prod_test_123456789abcdef0123456789abcdef0123456789abcdef0123456789ab",
+  "metadata": {
+    "formId": "production_test_form",
+    "responseId": "prod_response_001",
+    "timestamp": 1703310000000,
+    "version": "1.0",
+    "environment": "production"
+  }
+}
+
+### Production hash verification
+GET https://NoTamperData.vercel.app/api/verify?hash=prod_test_123456789abcdef0123456789abcdef0123456789abcdef0123456789ab
+
+### Production access token status
+GET https://NoTamperData.vercel.app/api/access-token-status
+Authorization: Bearer ak_3358517c57db0bef
