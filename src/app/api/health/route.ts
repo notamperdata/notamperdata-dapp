@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
   // POST method for more detailed health checks or authentication testing
   try {
     const body = await request.json().catch(() => ({}));
-    const { includeDetailed = false, testTokenConsumption = false } = body;
+    const { includeDetailed = false } = body;
     
     // Extract access token
     const authHeader = request.headers.get('authorization');
