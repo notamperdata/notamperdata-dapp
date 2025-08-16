@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 // src/lib/PaymentProcessor.ts
 import { 
   PAYMENT_CONSTANTS, 

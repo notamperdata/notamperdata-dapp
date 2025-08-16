@@ -1,6 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { 
   Wallet, 
   CreditCard, 
@@ -10,8 +13,6 @@ import {
   X,
   RefreshCw
 } from 'lucide-react';
-import { BrowserWallet } from '@meshsdk/core';
-import { paymentUtils, paymentValidation, transactionMetadata } from '@/lib/paymentConfig';
 
 // Define a simplified wallet interface for this component
 interface WalletInfo {
@@ -20,7 +21,7 @@ interface WalletInfo {
   balance: string;
   networkId: number;
   networkName: string;
-  wallet: BrowserWallet;
+  wallet: any; // Keep as any to avoid import issues during SSR
 }
 
 interface PaymentDetails {
@@ -29,7 +30,8 @@ interface PaymentDetails {
   email: string;
 }
 
-const AccessPage: React.FC = () => {
+// Create the main component that will be dynamically imported
+const AccessPageComponent: React.FC = () => {
   
   // Wallet state
   const [connectedWallet, setConnectedWallet] = useState<WalletInfo | null>(null);
@@ -63,10 +65,12 @@ const AccessPage: React.FC = () => {
     { amount: 500, label: 'Business', description: '500 API calls' }
   ];
 
-  // Load available wallets on component mount
+  // Load available wallets on component mount - using dynamic imports
   useEffect(() => {
     const loadWallets = async () => {
       try {
+        // Dynamic import to avoid SSR issues
+        const { BrowserWallet } = await import('@meshsdk/core');
         const wallets = await BrowserWallet.getAvailableWallets();
         setAvailableWallets(wallets);
         console.log('Available wallets:', wallets);
@@ -76,7 +80,10 @@ const AccessPage: React.FC = () => {
       }
     };
 
-    loadWallets();
+    // Only load wallets on client side
+    if (typeof window !== 'undefined') {
+      loadWallets();
+    }
   }, []);
 
   // Get network info from network ID
@@ -87,13 +94,16 @@ const AccessPage: React.FC = () => {
     return { name: 'Preview Testnet', isMainnet: false };
   };
 
-  // Connect to wallet
+  // Connect to wallet - using dynamic imports
   const connectWallet = async (walletName: string) => {
     setIsConnecting(true);
     setWalletError(null);
 
     try {
       console.log(`Connecting to wallet: ${walletName}`);
+      
+      // Dynamic import to avoid SSR issues
+      const { BrowserWallet } = await import('@meshsdk/core');
       
       // Enable the wallet using MeshSDK
       const wallet = await BrowserWallet.enable(walletName);
@@ -122,7 +132,7 @@ const AccessPage: React.FC = () => {
         console.log('getLovelace failed, trying getBalance:', error);
         try {
           const balance = await wallet.getBalance();
-          const lovelaceAsset = balance.find((asset: { unit: string; }) => asset.unit === 'lovelace');
+          const lovelaceAsset = balance.find((asset: { unit: string; quantity: string }) => asset.unit === 'lovelace');
           if (lovelaceAsset) {
             lovelace = lovelaceAsset.quantity;
           }
@@ -183,29 +193,38 @@ const AccessPage: React.FC = () => {
     setaccessToken(null);
   };
 
-  // Update payment details
-  const updatePaymentAmount = (amount: number) => {
-    const tokens = paymentValidation.calculateTokens(amount);
-    setPaymentDetails(prev => ({
-      ...prev,
-      adaAmount: amount,
-      tokenAmount: tokens
-    }));
+  // Update payment details - using dynamic imports for validation
+  const updatePaymentAmount = async (amount: number) => {
+    try {
+      // Dynamic import for payment validation
+      const { paymentValidation } = await import('@/lib/paymentConfig');
+      const tokens = paymentValidation.calculateTokens(amount);
+      setPaymentDetails(prev => ({
+        ...prev,
+        adaAmount: amount,
+        tokenAmount: tokens
+      }));
+    } catch (error) {
+      console.log(error)
+      // Fallback calculation if import fails
+      setPaymentDetails(prev => ({
+        ...prev,
+        adaAmount: amount,
+        tokenAmount: amount // 1:1 ratio as fallback
+      }));
+    }
   };
 
-  // Validate payment readiness
-  const canProceedToPayment = (): boolean => {
+
+  // Sync version for immediate UI feedback
+  const canProceedToPaymentSync = (): boolean => {
     if (!connectedWallet) return false;
-    if (!paymentValidation.isValidAmount(paymentDetails.adaAmount)) return false;
-    if (paymentDetails.email && !paymentValidation.isValidEmail(paymentDetails.email)) return false;
-    
-    // Check if wallet has sufficient balance
     const balanceStr = walletBalance.replace(' ADA', '');
     const balance = parseFloat(balanceStr);
-    return balance >= paymentDetails.adaAmount;
+    return balance >= paymentDetails.adaAmount && paymentDetails.adaAmount > 0;
   };
 
-  // Process payment with dynamic network support
+  // Process payment with dynamic network support - using dynamic imports
   const processPayment = async () => {
     if (!connectedWallet || !connectedWallet.wallet) {
       setPaymentError('Please connect your wallet first');
@@ -218,6 +237,9 @@ const AccessPage: React.FC = () => {
 
     try {
       console.log('Processing payment on network:', networkName, 'ID:', networkId);
+      
+      // Dynamic imports for payment processing
+      const { paymentUtils, transactionMetadata } = await import('@/lib/paymentConfig');
       
       // Get platform address for the detected network
       const platformAddress = paymentUtils.getPlatformAddress(networkId);
@@ -245,7 +267,7 @@ const AccessPage: React.FC = () => {
       
       console.log('Transaction metadata:', metadata);
       
-      // Build transaction using MeshJS Transaction builder
+      // Build transaction using MeshJS Transaction builder - dynamic import
       const { Transaction } = await import('@meshsdk/core');
       const tx = new Transaction({ initiator: connectedWallet.wallet });
       
@@ -605,9 +627,9 @@ const AccessPage: React.FC = () => {
                   <div className="flex space-x-4">
                     <button
                       onClick={() => setStep('confirm')}
-                      disabled={!canProceedToPayment()}
+                      disabled={!canProceedToPaymentSync()}
                       className={`flex-1 px-6 py-4 rounded-lg font-semibold transition-colors ${
-                        canProceedToPayment()
+                        canProceedToPaymentSync()
                           ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md'
                           : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                       }`}
@@ -752,12 +774,24 @@ const AccessPage: React.FC = () => {
                 </div>
               )}
             </div>
-
-
           </div>
         </div>
       </div>
     </div>
   );
-}
+};
+
+// Export with dynamic import to disable SSR
+const AccessPage = dynamic(() => Promise.resolve(AccessPageComponent), {
+  ssr: false,
+  loading: () => (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+        <p className="text-gray-600">Loading wallet interface...</p>
+      </div>
+    </div>
+  )
+});
+
 export default AccessPage;

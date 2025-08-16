@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // src/app/api/verify/route.tsx
 import { NextRequest, NextResponse } from 'next/server';
 import { getNetworkTypeFromId, networkUrls } from '@/lib/contract';

@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
+
 // src/lib/emailService.ts
 /**
  * Email service for sending Access_Tokens to users

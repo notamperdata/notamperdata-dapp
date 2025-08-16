@@ -4,6 +4,8 @@ import webpack from "webpack";
 const nextConfig: NextConfig = {
   // Explicitly define environment variables for production
   env: {
+    // Add MONGODB_URI to the environment variables
+    MONGODB_URI: process.env.MONGODB_URI,
     BLOCKFROST_PROJECT_ID: process.env.BLOCKFROST_PROJECT_ID,
     PLATFORM_WALLET_MNEMONIC: process.env.PLATFORM_WALLET_MNEMONIC,
     CONTRACT_ADDRESS: process.env.CONTRACT_ADDRESS,
@@ -68,11 +70,13 @@ const nextConfig: NextConfig = {
       }),
       // Explicitly define environment variables in webpack
       new webpack.DefinePlugin({
+        // Add MONGODB_URI to webpack definitions
+        'process.env.MONGODB_URI': JSON.stringify(process.env.MONGODB_URI),
         'process.env.BLOCKFROST_PROJECT_ID': JSON.stringify(process.env.BLOCKFROST_PROJECT_ID),
         'process.env.PLATFORM_WALLET_MNEMONIC': JSON.stringify(process.env.PLATFORM_WALLET_MNEMONIC),
         'process.env.CONTRACT_ADDRESS': JSON.stringify(process.env.CONTRACT_ADDRESS),
         'process.env.CARDANO_NETWORK': JSON.stringify(process.env.CARDANO_NETWORK),
-        // Add client-side accessible environment variables
+        // Client-side accessible environment variables
         'process.env.NEXT_PUBLIC_CARDANO_NETWORK': JSON.stringify(process.env.CARDANO_NETWORK),
         'process.env.NEXT_PUBLIC_BLOCKFROST_PROJECT_ID': JSON.stringify(process.env.BLOCKFROST_PROJECT_ID),
       })

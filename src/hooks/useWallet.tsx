@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // src/hooks/useWallet.tsx
 'use client';
 

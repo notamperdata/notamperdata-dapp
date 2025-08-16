@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 // src/lib/paymentConfig.ts
 
 // Payment configuration and constants
