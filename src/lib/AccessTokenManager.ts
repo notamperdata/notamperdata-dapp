@@ -175,15 +175,55 @@ export class AccessTokenManager {
         };
       }
 
-      // Validate token consumption amount
-      if (!Number.isInteger(tokensToConsume) || tokensToConsume < 1) {
+      // Validate token consumption amount - FIXED: Allow 0 for validation-only checks
+      if (!Number.isInteger(tokensToConsume) || tokensToConsume < 0) {
         return { 
           valid: false, 
           error: 'Invalid token consumption amount' 
         };
       }
 
-      // Find active access token with sufficient tokens
+      // If tokensToConsume is 0, we're doing validation only (no token consumption)
+      if (tokensToConsume === 0) {
+        // Find active access token (no token requirement for validation-only)
+        const foundToken = await AccessToken.findOne({
+          accessTokenId,
+          isActive: true
+        });
+
+        if (!foundToken) {
+          // Check if key exists but is inactive
+          const inactiveToken = await AccessToken.findOne({ accessTokenId });
+          
+          if (!inactiveToken) {
+            return { 
+              valid: false, 
+              error: 'Access token not found' 
+            };
+          }
+          
+          if (!inactiveToken.isActive) {
+            return { 
+              valid: false, 
+              error: 'Access token is disabled' 
+            };
+          }
+          
+          // If we reach here, token exists but something else is wrong
+          return { 
+            valid: false, 
+            error: 'Access token validation failed' 
+          };
+        }
+
+        // Return success with current token count for validation-only checks
+        return {
+          valid: true,
+          remainingTokens: foundToken.remainingTokens
+        };
+      }
+
+      // For token consumption (tokensToConsume > 0), check token availability
       const foundToken = await AccessToken.findOne({
         accessTokenId,
         isActive: true,

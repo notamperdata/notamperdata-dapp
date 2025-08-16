@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // src/lib/authMiddleware.ts
 import { NextRequest } from 'next/server';
 import { AccessTokenManager } from '@/lib/AccessTokenManager';
