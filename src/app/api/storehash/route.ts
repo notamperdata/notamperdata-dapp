@@ -1,11 +1,20 @@
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 // src/app/api/storehash/route.ts
-
 import { NextRequest, NextResponse } from 'next/server';
 import { AccessTokenManager } from '@/lib/AccessTokenManager';
 import dbConnect from '@/lib/mongodb';
+import { 
+  Lucid, 
+  Blockfrost, 
+  LucidEvolution
+} from '@lucid-evolution/lucid';
+import { 
+  loadContractConfig,
+  networkUrls,
+  getNetworkTypeFromId as getContractNetworkType,
+  getLucidNetworkType,
+  loadNoTamperDataValidator,
+  NoTamperData_CONSTANTS
+} from '@/lib/contract';
 
 interface StoreHashRequest {
   hash: string;
@@ -13,7 +22,6 @@ interface StoreHashRequest {
   formId?: string;
   responseId?: string;
   networkId?: number;
-  accessToken?: string; // Remove from interface since we're not using body
 }
 
 interface StoreHashResponse {
@@ -31,6 +39,12 @@ interface StoreHashResponse {
     timestamp: string;
     remainingTokens: number;
     blockchainExplorer: string;
+    blockchainProof: {
+      label: number;
+      hash: string;
+      txHash: string;
+    };
+    contractAddress: string;
   };
   error?: string;
   message?: string;
@@ -64,22 +78,108 @@ function getNetworkTypeFromId(networkId: number): string {
 }
 
 /**
- * Store hash on blockchain (placeholder implementation)
- * Replace with actual blockchain interaction
+ * Get blockchain explorer URL for transaction
+ */
+function getBlockchainExplorerUrl(txHash: string, networkId: number): string {
+  if (networkId === 1) {
+    return `https://cardanoscan.io/transaction/${txHash}`;
+  } else {
+    // For testnet, we need to determine if it's Preview or Preprod
+    // Since we default to Preview in the contract config, use Preview
+    return `https://preview.cardanoscan.io/transaction/${txHash}`;
+  }
+}
+
+/**
+ * Initialize Lucid using the contract utilities
+ */
+async function initLucid(networkId: number): Promise<LucidEvolution> {
+  const config = loadContractConfig(networkId);
+  
+  console.log('🔧 Environment variables loaded:', {
+    hasBlockfrostId: !!config.blockfrostProjectId,
+    hasWalletMnemonic: !!config.platformWalletMnemonic,
+    hasContractAddress: !!config.contractAddress,
+    networkType: config.networkType
+  });
+
+  const network = getLucidNetworkType(config.networkType);
+  const blockfrostUrl = networkUrls[config.networkType];
+
+    const lucid = await Lucid(
+      new Blockfrost(blockfrostUrl, config.blockfrostProjectId),
+      network
+    );
+
+    // Select wallet from mnemonic
+    lucid.selectWallet.fromSeed(config.platformWalletMnemonic);
+
+    return lucid;
+}
+
+/**
+ * Store hash on blockchain with metadata
  */
 async function storeHashOnBlockchain(
   hash: string, 
   metadata: { formId?: string; responseId?: string; networkId: number }
 ): Promise<string> {
-  // Placeholder implementation
-  // In production, this would interact with actual blockchain
-  const mockTxHash = `tx_${Date.now()}_${hash.substring(0, 8)}`;
-  
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 100));
-  
-  console.log(`Storing hash ${hash} on blockchain (network ${metadata.networkId})`);
-  return mockTxHash;
+  try {
+    console.log('🚀 Storing hash on blockchain:', hash);
+    
+    // Initialize Lucid with network ID
+    const lucid = await initLucid(metadata.networkId);
+    
+    // Load validator using the embedded data (for future use)
+    const contractNetworkType = getContractNetworkType(metadata.networkId);
+    const validator = loadNoTamperDataValidator(contractNetworkType);
+    console.log('📜 Validator loaded, hash:', validator.hash);
+    
+    // Get contract address from config
+    const config = loadContractConfig(metadata.networkId);
+    console.log('📋 Using contract address:', config.contractAddress);
+    
+    // Create transaction metadata according to specification (label 8434)
+    const txMetadata = {
+      hash: hash,
+      form_id: metadata.formId || 'unknown',
+      response_id: metadata.responseId || 'unknown',
+      timestamp: Date.now(),
+      network_id: metadata.networkId,
+      version: "1.0"
+    };
+    
+    console.log('📝 Transaction metadata:', txMetadata);
+    
+    // Create transaction to store hash
+    const tx = lucid
+      .newTx()
+      .pay.ToAddress(
+        config.contractAddress,
+        { lovelace: NoTamperData_CONSTANTS.CONTRACT_UTXO_AMOUNT }
+      )
+      .attachMetadata(NoTamperData_CONSTANTS.METADATA_LABEL, txMetadata);
+    
+    console.log('⚙️ Building transaction...');
+    
+    // Complete and sign transaction
+    const completedTx = await tx.complete();
+    const signedTx = await completedTx.sign.withWallet().complete();
+    
+    console.log('📤 Submitting transaction...');
+    
+    // Submit transaction
+    const txHash = await signedTx.submit();
+    
+    console.log('✅ Hash stored successfully on blockchain!');
+    console.log('🔗 Transaction hash:', txHash);
+    
+    return txHash;
+    
+  } catch (error) {
+    console.error('💥 Error storing hash on blockchain:', error);
+    throw error;
+  }
 }
 
 /**
@@ -90,7 +190,7 @@ async function storeHashOnBlockchain(
  */
 export async function POST(request: NextRequest): Promise<NextResponse<StoreHashResponse>> {
   try {
-    console.log('🔐 Store Hash - Processing request');
+    console.log('🔐 Store Hash - Processing request with blockchain integration');
 
     // Parse request body
     const body: StoreHashRequest = await request.json();
@@ -231,6 +331,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<StoreHash
     // Get network name for response
     const networkType = getNetworkTypeFromId(networkId);
     
+    // Get contract address from config
+    const config = loadContractConfig(networkId);
+    
     // Return success response with transaction details
     return NextResponse.json({
       success: true,
@@ -246,9 +349,13 @@ export async function POST(request: NextRequest): Promise<NextResponse<StoreHash
         },
         timestamp: new Date().toISOString(),
         remainingTokens: consumeResult.remainingTokens ?? (statusResult.data.remainingTokens - 1),
-        blockchainExplorer: networkId === 1
-          ? `https://cardanoscan.io/transaction/${txHash}`
-          : `https://testnet.cardanoscan.io/transaction/${txHash}`
+        blockchainExplorer: getBlockchainExplorerUrl(txHash, networkId),
+        blockchainProof: {
+          label: NoTamperData_CONSTANTS.METADATA_LABEL,
+          hash: body.hash,
+          txHash: txHash
+        },
+        contractAddress: config.contractAddress
       }
     });
 
@@ -277,19 +384,24 @@ export async function GET(): Promise<NextResponse> {
   return NextResponse.json({
     endpoint: 'storehash',
     method: 'POST',
-    description: 'Store hash on blockchain with access token authentication',
+    description: 'Store hash on Cardano blockchain with access token authentication',
     authentication: {
       methods: ['Authorization: Bearer {accessToken}'],
       format: 'ak_[16 alphanumeric characters]'
     },
     requiredFields: ['hash'],
-    optionalFields: ['metadata', 'formId', 'responseId', 'networkId', 'accessToken'],
+    optionalFields: ['metadata', 'formId', 'responseId', 'networkId'],
     networkIds: {
       0: 'testnet',
       1: 'mainnet'
     },
     hashFormat: '64 hexadecimal characters',
     costPerHash: '1 token',
+    blockchainIntegration: {
+      platform: 'Cardano',
+      metadataLabel: NoTamperData_CONSTANTS.METADATA_LABEL,
+      contractAmount: NoTamperData_CONSTANTS.CONTRACT_UTXO_AMOUNT
+    },
     response: {
       success: 'boolean',
       data: {
@@ -298,7 +410,9 @@ export async function GET(): Promise<NextResponse> {
         network: 'object',
         timestamp: 'string',
         remainingTokens: 'number',
-        blockchainExplorer: 'string'
+        blockchainExplorer: 'string',
+        blockchainProof: 'object',
+        contractAddress: 'string'
       }
     }
   });
