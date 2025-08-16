@@ -288,7 +288,9 @@ GET http://localhost:3000/api/verify
 OPTIONS http://localhost:3000/api/storehash
 
 ### Test CORS preflight for health endpoint
-OPTIONS http://localhost:3000/api/health
+GET http://localhost:3000/api/health
+Authorization: Bearer ak_3358517c57db0bef
+
 
 ###########################################
 # 7. PRODUCTION ENDPOINTS

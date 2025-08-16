@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // src/app/api/storehash/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { AccessTokenManager } from '@/lib/AccessTokenManager';
