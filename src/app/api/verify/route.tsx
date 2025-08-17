@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-
 // src/app/api/verify/route.tsx
 import { NextRequest, NextResponse } from 'next/server';
 import { getNetworkTypeFromId, networkUrls } from '@/lib/contract';
@@ -100,57 +99,106 @@ function getExplorerUrl(txHash: string, networkId: number): string {
   return `https://preview.cardanoscan.io/transaction/${txHash}`;
 }
 
-// Fetch transaction metadata from Blockfrost
+// Enhanced fetch with intelligent pagination
 async function fetchTransactionMetadata(
   hash: string,
-  networkId: number
+  networkId: number,
+  maxPages: number = 50 // Configurable limit to prevent infinite loops
 ): Promise<BlockfrostMetadataResponse[]> {
   if (!BLOCKFROST_PROJECT_ID) {
     throw new Error('Blockfrost project ID not configured');
   }
 
   const blockfrostUrl = getBlockfrostUrl(networkId);
-  const metadataUrl = `${blockfrostUrl}/metadata/txs/labels/8434`;
+  let page = 1;
+  const count = 100; // Blockfrost max page size
+  let totalProcessed = 0;
+  const allMatches: BlockfrostMetadataResponse[] = [];
+  const startTime = Date.now();
   
   console.log(`🔍 Searching for hash on network ID ${networkId}:`, hash);
-  console.log('📡 Blockfrost URL:', metadataUrl);
+  console.log('📡 Blockfrost base URL:', blockfrostUrl);
 
   try {
-    const response = await fetch(metadataUrl, {
-      headers: {
-        'project_id': BLOCKFROST_PROJECT_ID,
-      },
-      next: { revalidate: 60 } // Cache for 1 minute
-    });
+    while (page <= maxPages) {
+      const metadataUrl = `${blockfrostUrl}/metadata/txs/labels/8434?page=${page}&count=${count}&order=desc`;
+      
+      console.log(`📄 Fetching page ${page}:`, metadataUrl);
 
-    if (!response.ok) {
-      if (response.status === 404) {
-        console.log('No metadata found for label 8434 on this network');
-        return [];
+      const response = await fetch(metadataUrl, {
+        headers: {
+          'project_id': BLOCKFROST_PROJECT_ID,
+        },
+        next: { revalidate: 60 } // Cache for 1 minute
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.log(`📄 No more metadata found (404 on page ${page})`);
+          break;
+        }
+        throw new Error(`Blockfrost API error: ${response.status} on page ${page}`);
       }
-      throw new Error(`Blockfrost API error: ${response.status}`);
+
+      const data = await response.json();
+      totalProcessed += data.length;
+      
+      console.log(`📄 Page ${page}: Found ${data.length} transactions (total processed: ${totalProcessed})`);
+      
+      // If no transactions on this page, we've reached the end
+      if (data.length === 0) {
+        console.log('📄 Empty page encountered, ending search');
+        break;
+      }
+
+      // Filter for matching hash - KEEP ORIGINAL LOGIC
+      const matches = data.filter((item: any) => {
+        try {
+          const metadata = item.json_metadata;
+          return metadata && (
+            metadata.hash === hash ||
+            metadata['8434']?.hash === hash
+          );
+        } catch {
+          return false;
+        }
+      });
+
+      console.log(`🎯 Page ${page}: Found ${matches.length} matching transactions`);
+
+      // Collect all matches
+      allMatches.push(...matches);
+
+      // If we found matches, return them immediately (early exit optimization)
+      if (matches.length > 0) {
+        const searchTime = Date.now() - startTime;
+        console.log(`✅ Found ${matches.length} matching transaction(s) on page ${page} after ${searchTime}ms`);
+        console.log(`📊 Search stats: ${totalProcessed} transactions processed across ${page} pages`);
+        return allMatches;
+      }
+
+      // Continue to next page if we got a full page of results
+      if (data.length < count) {
+        console.log(`📄 Partial page (${data.length} < ${count}), reached end of data`);
+        break;
+      }
+
+      page++;
     }
 
-    const data = await response.json();
-    console.log(`Found ${data.length} transactions with metadata label 8434`);
+    // If we reach here, no matches were found
+    const searchTime = Date.now() - startTime;
+    console.log(`❌ Hash not found after searching ${page - 1} pages (${totalProcessed} transactions) in ${searchTime}ms`);
     
-    // Filter for matching hash
-    const matches = data.filter((item: any) => {
-      try {
-        const metadata = item.json_metadata;
-        return metadata && (
-          metadata.hash === hash ||
-          metadata['8434']?.hash === hash
-        );
-      } catch {
-        return false;
-      }
-    });
+    if (page > maxPages) {
+      console.warn(`⚠️  Search stopped at maximum page limit (${maxPages})`);
+    }
+    
+    return allMatches; // Return empty array if no matches found
 
-    console.log(`Found ${matches.length} matching transactions`);
-    return matches;
   } catch (error) {
-    console.error('Error fetching metadata:', error);
+    const searchTime = Date.now() - startTime;
+    console.error(`💥 Error fetching metadata after ${searchTime}ms:`, error);
     throw error;
   }
 }
@@ -214,7 +262,7 @@ async function verifyHashOnBlockchain(
       networkId
     });
 
-    // Fetch metadata from blockchain
+    // Fetch metadata from blockchain with pagination
     const metadataResults = await fetchTransactionMetadata(hash, networkId);
 
     if (metadataResults.length === 0) {
@@ -231,7 +279,7 @@ async function verifyHashOnBlockchain(
       };
     }
 
-    // Find the most recent matching transaction
+    // Find the most recent matching transaction - KEEP ORIGINAL LOGIC
     let matchingTx = null;
     for (const tx of metadataResults) {
       const metadata = tx.json_metadata;
