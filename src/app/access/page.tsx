@@ -11,7 +11,12 @@ import {
   CheckCircle, 
   Info,
   X,
-  RefreshCw
+  RefreshCw,
+  Copy,
+  Trash2,
+  Key,
+  Clock,
+  Zap
 } from 'lucide-react';
 
 // Define a simplified wallet interface for this component
@@ -28,6 +33,15 @@ interface PaymentDetails {
   adaAmount: number;
   tokenAmount: number;
   email: string;
+}
+
+interface StoredToken {
+  token: string;
+  adaAmount: number;
+  tokenAmount: number;
+  createdAt: string;
+  networkId: number;
+  networkName: string;
 }
 
 // Create the main component that will be dynamically imported
@@ -55,7 +69,11 @@ const AccessPageComponent: React.FC = () => {
   const [processingPayment, setProcessingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
-  const [accessToken, setaccessToken] = useState<string | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+
+  // Local storage and toast state
+  const [storedTokens, setStoredTokens] = useState<StoredToken[]>([]);
+  const [showToast, setShowToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Predefined token amounts
   const tokenOptions = [
@@ -64,6 +82,87 @@ const AccessPageComponent: React.FC = () => {
     { amount: 100, label: 'Professional', description: '100 API calls' },
     { amount: 500, label: 'Business', description: '500 API calls' }
   ];
+
+  // Load stored tokens from localStorage on component mount
+  useEffect(() => {
+    loadStoredTokens();
+  }, []);
+
+  // Load stored tokens from localStorage
+  const loadStoredTokens = () => {
+    try {
+      const stored = localStorage.getItem('notamperdata_tokens');
+      if (stored) {
+        const tokens = JSON.parse(stored);
+        setStoredTokens(Array.isArray(tokens) ? tokens : []);
+      }
+    } catch (error) {
+      console.error('Error loading stored tokens:', error);
+    }
+  };
+
+  // Save token to localStorage
+  const saveTokenToStorage = (token: string, adaAmount: number, tokenAmount: number, networkId: number, networkName: string) => {
+    try {
+      const newToken: StoredToken = {
+        token,
+        adaAmount,
+        tokenAmount,
+        createdAt: new Date().toISOString(),
+        networkId,
+        networkName
+      };
+      
+      const updatedTokens = [...storedTokens, newToken];
+      localStorage.setItem('notamperdata_tokens', JSON.stringify(updatedTokens));
+      setStoredTokens(updatedTokens);
+      
+      showToastMessage('Token saved successfully!', 'success');
+    } catch (error) {
+      console.error('Error saving token:', error);
+      showToastMessage('Failed to save token', 'error');
+    }
+  };
+
+  // Clear a specific token from storage
+  const clearTokenFromStorage = (tokenToRemove: string) => {
+    try {
+      const updatedTokens = storedTokens.filter(t => t.token !== tokenToRemove);
+      localStorage.setItem('notamperdata_tokens', JSON.stringify(updatedTokens));
+      setStoredTokens(updatedTokens);
+      showToastMessage('Token removed successfully!', 'success');
+    } catch (error) {
+      console.error('Error removing token:', error);
+      showToastMessage('Failed to remove token', 'error');
+    }
+  };
+
+  // Clear all tokens from storage
+  const clearAllTokens = () => {
+    try {
+      localStorage.removeItem('notamperdata_tokens');
+      setStoredTokens([]);
+      showToastMessage('All tokens cleared!', 'success');
+    } catch (error) {
+      console.error('Error clearing tokens:', error);
+      showToastMessage('Failed to clear tokens', 'error');
+    }
+  };
+
+  // Copy token to clipboard
+  const copyTokenToClipboard = (token: string) => {
+    navigator.clipboard.writeText(token).then(() => {
+      showToastMessage('Token copied to clipboard!', 'success');
+    }).catch(() => {
+      showToastMessage('Failed to copy token', 'error');
+    });
+  };
+
+  // Show toast message
+  const showToastMessage = (message: string, type: 'success' | 'error') => {
+    setShowToast({ message, type });
+    setTimeout(() => setShowToast(null), 3000);
+  };
 
   // Load available wallets on component mount - using dynamic imports
   useEffect(() => {
@@ -190,7 +289,7 @@ const AccessPageComponent: React.FC = () => {
     setStep('connect');
     setPaymentError(null);
     setTransactionHash(null);
-    setaccessToken(null);
+    setAccessToken(null);
   };
 
   // Update payment details - using dynamic imports for validation
@@ -214,7 +313,6 @@ const AccessPageComponent: React.FC = () => {
       }));
     }
   };
-
 
   // Sync version for immediate UI feedback
   const canProceedToPaymentSync = (): boolean => {
@@ -320,7 +418,16 @@ const AccessPageComponent: React.FC = () => {
         throw new Error('Failed to generate access token');
       }
       
-      setaccessToken(accessTokenData.accessToken);
+      setAccessToken(accessTokenData.accessToken);
+      
+      // Save token to localStorage automatically
+      saveTokenToStorage(
+        accessTokenData.accessToken,
+        paymentDetails.adaAmount,
+        paymentDetails.tokenAmount,
+        networkId,
+        networkName
+      );
       
       // Email notification is handled by the API endpoint
       if (paymentDetails.email && accessTokenData.emailSent) {
@@ -358,10 +465,41 @@ const AccessPageComponent: React.FC = () => {
     return 'bg-blue-100 text-blue-800 border border-blue-200';
   };
 
+  // Format date for display
+  const formatDate = (isoString: string): string => {
+    return new Date(isoString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="container mx-auto px-4">
         
+        {/* Toast Notification */}
+        {showToast && (
+          <div className="fixed top-4 right-4 z-50 animate-in fade-in duration-300">
+            <div className={`rounded-lg p-4 shadow-lg border ${
+              showToast.type === 'success' 
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                : 'bg-red-50 border-red-200 text-red-800'
+            }`}>
+              <div className="flex items-center space-x-2">
+                {showToast.type === 'success' ? (
+                  <CheckCircle className="w-5 h-5" />
+                ) : (
+                  <AlertCircle className="w-5 h-5" />
+                )}
+                <span className="font-medium">{showToast.message}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Wallet Modal */}
         {showWalletModal && (
           <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
@@ -595,23 +733,6 @@ const AccessPageComponent: React.FC = () => {
                     </p>
                   </div>
 
-                  {/* Email (Optional) */}
-                  {/* <div className="mb-6">
-                    <label className="block text-sm font-semibold text-gray-800 mb-3">
-                      Email Address (Optional)
-                    </label>
-                    <input
-                      type="email"
-                      value={paymentDetails.email}
-                      onChange={(e) => setPaymentDetails(prev => ({ ...prev, email: e.target.value }))}
-                      placeholder="your@email.com"
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
-                    />
-                    <p className="text-sm text-gray-600 mt-2">
-                      We&apos;ll send your access token to this email for safekeeping
-                    </p>
-                  </div> */}
-
                   {/* Payment Error */}
                   {paymentError && (
                     <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
@@ -690,7 +811,7 @@ const AccessPageComponent: React.FC = () => {
                           <li>Transaction will be processed on {networkName}</li>
                           <li>Access token will be generated after payment confirmation</li>
                           <li>Each token allows 1 hash storage on the blockchain</li>
-                          <li>Tokens never expire</li>
+                          <li>Tokens have no expiry</li>
                         </ul>
                       </div>
                     </div>
@@ -745,37 +866,174 @@ const AccessPageComponent: React.FC = () => {
                   </div>
                   <h2 className="text-2xl font-bold text-gray-900 mb-6">Payment Successful!</h2>
                   
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-6 mb-6">
-                    <p className="text-emerald-800 font-semibold mb-3 text-lg">Your Access Token:</p>
-                    <code className="block bg-white px-4 py-3 rounded-lg border border-emerald-300 text-sm font-mono break-all text-gray-800 shadow-inner">
+                  {/* Token Information Card */}
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-6 mb-6 text-left">
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-emerald-800 font-semibold text-lg flex items-center">
+                        <Key className="w-5 h-5 mr-2" />
+                        Your Access Token
+                      </p>
+                      <button
+                        onClick={() => copyTokenToClipboard(accessToken)}
+                        className="flex items-center space-x-1 text-emerald-700 hover:text-emerald-800 font-medium bg-emerald-100 hover:bg-emerald-200 px-3 py-1 rounded-lg transition-colors"
+                      >
+                        <Copy className="w-4 h-4" />
+                        <span>Copy</span>
+                      </button>
+                    </div>
+                    
+                    <code className="block bg-white px-4 py-3 rounded-lg border border-emerald-300 text-sm font-mono break-all text-gray-800 shadow-inner mb-4">
                       {accessToken}
                     </code>
-                    <button
-                      onClick={() => navigator.clipboard.writeText(accessToken)}
-                      className="mt-3 text-emerald-700 hover:text-emerald-800 font-medium underline"
-                    >
-                      Copy to Clipboard
-                    </button>
+                    
+                    {/* Token Details */}
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div className="bg-white rounded-lg p-3 border border-emerald-200">
+                        <div className="flex items-center text-emerald-700 mb-1">
+                          <Zap className="w-4 h-4 mr-1" />
+                          <span className="font-medium">Tokens Purchased</span>
+                        </div>
+                        <div className="text-emerald-900 font-bold text-lg">{paymentDetails.tokenAmount}</div>
+                        <div className="text-emerald-600 text-xs">API calls available</div>
+                      </div>
+                      
+                      <div className="bg-white rounded-lg p-3 border border-emerald-200">
+                        <div className="flex items-center text-emerald-700 mb-1">
+                          <Clock className="w-4 h-4 mr-1" />
+                          <span className="font-medium">Valid Until</span>
+                        </div>
+                        <div className="text-emerald-900 font-bold">No expiry</div>
+                        <div className="text-emerald-600 text-xs">Use anytime</div>
+                      </div>
+                    </div>
+                    
+            
                   </div>
 
+                  {/* Transaction Information */}
                   {transactionHash && (
-                    <div className="mb-8">
-                      <p className="text-gray-700 font-medium mb-2">Transaction Hash:</p>
+                    <div className="mb-8 bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <p className="text-gray-700 font-medium mb-2">Transaction Details:</p>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Network:</span>
+                          <span className="font-medium text-gray-900">{networkName}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Amount Paid:</span>
+                          <span className="font-medium text-gray-900">{paymentDetails.adaAmount} ADA</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Transaction Hash:</span>
+                          <a
+                            href={getExplorerUrl(transactionHash)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-700 font-mono text-xs break-all max-w-[200px] truncate"
+                          >
+                            {transactionHash.substring(0, 16)}...
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex space-x-4">
+                    <button
+                      onClick={() => {
+                        setStep('connect');
+                        setAccessToken(null);
+                        setTransactionHash(null);
+                        handleWalletDisconnect();
+                      }}
+                      className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                    >
+                      Purchase More Tokens
+                    </button>
+                    {transactionHash && (
                       <a
                         href={getExplorerUrl(transactionHash)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-700 font-mono text-sm break-all bg-gray-50 px-3 py-2 rounded-lg border border-gray-200 inline-block"
+                        className="px-6 py-3 border-2 border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium"
                       >
-                        {transactionHash}
+                        View Transaction
                       </a>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               )}
             </div>
           </div>
         </div>
+
+        {/* Stored Tokens Management Section */}
+        {storedTokens.length > 0 && (
+          <div className="py-6">
+            <div className="max-w-4xl mx-auto">
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center">
+                    <Key className="w-6 h-6 mr-2 text-blue-600" />
+                    Your Access Tokens
+                  </h3>
+                  <button
+                    onClick={clearAllTokens}
+                    className="text-red-600 hover:text-red-700 font-medium flex items-center space-x-1"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Clear All</span>
+                  </button>
+                </div>
+                
+                <div className="grid gap-4">
+                  {storedTokens.map((storedToken, index) => (
+                    <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-3 mb-2">
+                            <code className="bg-white px-3 py-1 rounded border text-sm text-black font-mono">
+                              {storedToken.token.substring(0,3)}...{storedToken.token.substring(storedToken.token.length-5)}
+                            </code>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              storedToken.networkId === 1 
+                                ? 'bg-emerald-100 text-emerald-800' 
+                                : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {storedToken.networkName}
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-600 space-y-1">
+                            <div>{storedToken.tokenAmount} tokens</div>
+                            <div>Created: {formatDate(storedToken.createdAt)}</div>
+                          </div>
+                        </div>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => copyTokenToClipboard(storedToken.token)}
+                            className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Copy token"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => clearTokenFromStorage(storedToken.token)}
+                            className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Remove token"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
       </div>
     </div>
   );
