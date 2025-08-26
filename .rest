@@ -7,7 +7,7 @@
 ### Store a hash on blockchain with metadata
 POST http://localhost:3000/api/storehash
 Content-Type: application/json
-Authorization: Bearer ak_3358517c57db0bef
+Authorization: Bearer ak_cb38508b905f950d
 
 {
   "hash": "fbc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b",
@@ -24,7 +24,7 @@ Authorization: Bearer ak_3358517c57db0bef
 ### Store another test hash
 POST http://localhost:3000/api/storehash
 Content-Type: application/json
-Authorization: Bearer ak_3358517c57db0bef
+Authorization: Bearer ak_cb38508b905f950d
 
 {
   "hash": "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456",
@@ -41,7 +41,7 @@ Authorization: Bearer ak_3358517c57db0bef
 ### Store hash with minimal metadata
 POST http://localhost:3000/api/storehash
 Content-Type: application/json
-Authorization: Bearer ak_3358517c57db0bef
+Authorization: Bearer ak_cb38508b905f950d
 
 {
   "hash": "9876543210abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -56,7 +56,7 @@ Authorization: Bearer ak_3358517c57db0bef
 ### Store hash with specific network ID (mainnet)
 POST http://localhost:3000/api/storehash
 Content-Type: application/json
-Authorization: Bearer ak_3358517c57db0bef
+Authorization: Bearer ak_cb38508b905f950d
 
 {
   "hash": "mainnet_test_123456789abcdef0123456789abcdef0123456789abcdef012345678",
@@ -105,14 +105,14 @@ Content-Type: application/json
 
 ### Check access token status
 GET http://localhost:3000/api/access-token-status
-Authorization: Bearer ak_3358517c57db0bef
+Authorization: Bearer ak_cb38508b905f950d
 
 ### Check access token status (POST method)
 POST http://localhost:3000/api/access-token-status
 Content-Type: application/json
 
 {
-  "accessToken": "ak_3358517c57db0bef"
+  "accessToken": "ak_cb38508b905f950d"
 }
 
 ### Generate new access token (after payment)
@@ -133,12 +133,12 @@ GET http://localhost:3000/api/health
 
 ### Health check with access token (provides token info)
 GET http://localhost:3000/api/health
-Authorization: Bearer ak_3358517c57db0bef
+Authorization: Bearer ak_cb38508b905f950d
 
 ### Detailed health check (POST with authentication required)
 POST http://localhost:3000/api/health
 Content-Type: application/json
-Authorization: Bearer ak_3358517c57db0bef
+Authorization: Bearer ak_cb38508b905f950d
 
 {
   "includeDetailed": true,
@@ -148,7 +148,7 @@ Authorization: Bearer ak_3358517c57db0bef
 ### Test token consumption during health check
 POST http://localhost:3000/api/health
 Content-Type: application/json
-Authorization: Bearer ak_3358517c57db0bef
+Authorization: Bearer ak_cb38508b905f950d
 
 {
   "includeDetailed": true,
@@ -206,7 +206,7 @@ Authorization: Bearer wrong_format_token
 ### Test invalid hash format (should fail with 400)
 POST http://localhost:3000/api/storehash
 Content-Type: application/json
-Authorization: Bearer ak_3358517c57db0bef
+Authorization: Bearer ak_cb38508b905f950d
 
 {
   "hash": "invalid_hash",
@@ -221,7 +221,7 @@ Authorization: Bearer ak_3358517c57db0bef
 ### Test missing hash field (should fail with 400)
 POST http://localhost:3000/api/storehash
 Content-Type: application/json
-Authorization: Bearer ak_3358517c57db0bef
+Authorization: Bearer ak_cb38508b905f950d
 
 {
   "metadata": {
@@ -235,7 +235,7 @@ Authorization: Bearer ak_3358517c57db0bef
 ### Test invalid network ID (should fail with 400)
 POST http://localhost:3000/api/storehash
 Content-Type: application/json
-Authorization: Bearer ak_3358517c57db0bef
+Authorization: Bearer ak_cb38508b905f950d
 
 {
   "hash": "fbc46b1040a5d7c87d0df464b03581df16b3c39566ba7285509c400cf935e38b",
@@ -289,8 +289,7 @@ OPTIONS http://localhost:3000/api/storehash
 
 ### Test CORS preflight for health endpoint
 GET http://localhost:3000/api/health
-Authorization: Bearer ak_3358517c57db0bef
-
+Authorization: Bearer ak_cb38508b905f950d
 
 ###########################################
 # 7. PRODUCTION ENDPOINTS
@@ -298,12 +297,12 @@ Authorization: Bearer ak_3358517c57db0bef
 ###########################################
 
 ### Production health check
-GET https://NoTamperData.vercel.app/api/health
+GET https://notamperdata.vercel.app/api/health
 
 ### Production hash storage
-POST https://NoTamperData.vercel.app/api/storehash
+POST https://notamperdata.vercel.app/api/storehash
 Content-Type: application/json
-Authorization: Bearer ak_3358517c57db0bef
+Authorization: Bearer ak_cb38508b905f950d
 
 {
   "hash": "prod_test_123456789abcdef0123456789abcdef0123456789abcdef0123456789ab",
@@ -317,8 +316,8 @@ Authorization: Bearer ak_3358517c57db0bef
 }
 
 ### Production hash verification
-GET https://NoTamperData.vercel.app/api/verify?hash=prod_test_123456789abcdef0123456789abcdef0123456789abcdef0123456789ab
+GET https://notamperdata.vercel.app/api/verify?hash=prod_test_123456789abcdef0123456789abcdef0123456789abcdef0123456789ab
 
 ### Production access token status
-GET https://NoTamperData.vercel.app/api/access-token-status
-Authorization: Bearer ak_3358517c57db0bef
+GET https://notamperdata.vercel.app/api/access-token-status
+Authorization: Bearer ak_cb38508b905f950d
