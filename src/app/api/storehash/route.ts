@@ -23,6 +23,26 @@ import {
 if (typeof BigInt !== 'undefined') {
   (BigInt.prototype as any).toJSON = function() { return this.toString(); };
 }
+
+// Fix BigInt serialization AND add environment validation
+if (typeof BigInt !== 'undefined') {
+  (BigInt.prototype as any).toJSON = function() { return this.toString(); };
+}
+
+// Add environment validation at the start of the API route
+const ENV_VALIDATION = {
+  BLOCKFROST_PROJECT_ID: process.env.BLOCKFROST_PROJECT_ID,
+  PLATFORM_WALLET_MNEMONIC: process.env.PLATFORM_WALLET_MNEMONIC,
+  CONTRACT_ADDRESS: process.env.CONTRACT_ADDRESS,
+  MONGODB_URI: process.env.MONGODB_URI
+};
+
+console.log('🔧 Environment variables check:', {
+  hasBlockfrost: !!ENV_VALIDATION.BLOCKFROST_PROJECT_ID,
+  hasWallet: !!ENV_VALIDATION.PLATFORM_WALLET_MNEMONIC,
+  hasContract: !!ENV_VALIDATION.CONTRACT_ADDRESS,
+  hasMongoDB: !!ENV_VALIDATION.MONGODB_URI
+});
 interface StoreHashRequest {
   hash: string;
   metadata?: any;
