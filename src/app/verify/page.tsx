@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { Shield, FileText, Upload, Hash, Download, CheckCircle, XCircle, Clock, Lock } from 'lucide-react';
 
 // Define types for our verification API response
 interface VerificationResult {
@@ -46,6 +46,14 @@ interface StandardizedBatchData {
   responses: StandardizedResponse[];
 }
 
+// Loading Spinner Component
+const LoadingSpinner = ({ className = "h-4 w-4" }: { className?: string }) => (
+  <svg className={`animate-spin ${className}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+  </svg>
+);
+
 function VerifyContent() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -60,17 +68,28 @@ function VerifyContent() {
 
   // Check for hash in URL on component mount
   useEffect(() => {
-    // Check if hash is provided in URL path (e.g., /verify/abc123...)
     if (params?.hash && typeof params.hash === 'string') {
       setHash(params.hash);
       setVerificationMethod('hash');
     } 
-    // Check if hash is provided as search parameter (e.g., /verify?hash=abc123...)
     else if (searchParams?.get('hash')) {
       setHash(searchParams.get('hash') || '');
       setVerificationMethod('hash');
     }
   }, [params, searchParams]);
+
+  // Reset states when switching verification methods
+  useEffect(() => {
+    if (verificationMethod === 'hash') {
+      setCsvFile(null);
+    } else {
+      setHash('');
+    }
+    setError(null);
+    setResult(null);
+    setGeneratedHash(null);
+    setProcessingStep('');
+  }, [verificationMethod]);
 
   /**
    * Creates SHA-256 hash from string input
@@ -80,7 +99,6 @@ function VerifyContent() {
     const data = encoder.encode(input);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     
-    // Convert the hash to a hex string
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     
@@ -93,18 +111,14 @@ function VerifyContent() {
   const createDeterministicHash = async (data: unknown): Promise<string> => {
     console.log("\n=== HASHING ===");
     
-    // Replacer function for JSON.stringify
     const replacer = (key: string, value: unknown): unknown => {
-      // Handle arrays to ensure consistent ordering
       if (Array.isArray(value)) {
-        // Sort simple arrays by their string representation
         if (value.every(item => typeof item !== 'object' || item === null)) {
           return [...value].sort();
         }
         
-        // For arrays of objects, sort by stringifying their contents first
         return value
-          .map(item => JSON.stringify(item, replacer)) // Use the same replacer function recursively
+          .map(item => JSON.stringify(item, replacer))
           .sort()
           .map(item => {
             try {
@@ -116,7 +130,6 @@ function VerifyContent() {
           });
       }
       
-      // Handle objects to ensure consistent key ordering
       if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
         return Object.keys(value as Record<string, unknown>).sort().reduce((obj: Record<string, unknown>, k) => {
           obj[k] = (value as Record<string, unknown>)[k];
@@ -127,20 +140,16 @@ function VerifyContent() {
       return value;
     };
     
-    // Convert to string in a deterministic way (stable ordering of keys)
     const jsonString = JSON.stringify(data, replacer);
-    
     console.log("JSON string for hashing:", jsonString.substring(0, 200) + "...");
     
-    // Use SHA-256 hashing
     const hash = await createSha256Hash(jsonString);
-    
     console.log("Generated hash:", hash);
     return hash;
   };
 
   /**
-   * Parse CSV string to objects (simple approach matching your implementation)
+   * Parse CSV string to objects
    */
   const parseCsv = (csvContent: string): CsvRow[] => {
     console.log("=== PARSING CSV ===");
@@ -150,18 +159,16 @@ function VerifyContent() {
       throw new Error('CSV must have at least header and one data row');
     }
     
-    // Parse headers
     const headers = lines[0].split(',').map(header => 
-      header.replace(/^"(.*)"$/, '$1').trim() // Remove quotes and trim
+      header.replace(/^"(.*)"$/, '$1').trim()
     );
     
     console.log("Headers:", headers);
     
-    // Parse data rows
     const rows: CsvRow[] = [];
     for (let i = 1; i < lines.length; i++) {
       const values = lines[i].split(',').map(value => 
-        value.replace(/^"(.*)"$/, '$1') // Remove quotes but don't trim values
+        value.replace(/^"(.*)"$/, '$1')
       );
       
       const row: CsvRow = {};
@@ -178,19 +185,15 @@ function VerifyContent() {
 
   /**
    * Converts CSV data to standardized format matching the add-on's structure
-   * Excludes timestamp fields to match add-on standardization
    */
   const convertCsvToStandardizedFormat = (csvData: CsvRow[]): StandardizedBatchData => {
     console.log("=== CSV STANDARDIZATION ===");
     
-    // Convert CSV rows to standardized form response format (matching add-on logic)
     const responses: StandardizedResponse[] = csvData.map((row, index) => {
       console.log(`Processing CSV row ${index}`);
       
-      // Get field names, exclude timestamp fields, and sort alphabetically (matches add-on sorting)
       const fieldNames = Object.keys(row)
         .filter(fieldName => {
-          // Exclude timestamp fields to match add-on standardization
           const lowerField = fieldName.toLowerCase();
           return !lowerField.includes('timestamp') && 
                  !lowerField.includes('time') &&
@@ -210,12 +213,11 @@ function VerifyContent() {
       });
 
       return {
-        responseId: `response-${index}`, // Matches add-on pattern
+        responseId: `response-${index}`,
         items: items
       };
     });
 
-    // Create standardized batch data structure matching the add-on
     const standardizedBatch: StandardizedBatchData = {
       responseCount: responses.length,
       responses: responses
@@ -232,6 +234,7 @@ function VerifyContent() {
     const file = event.target.files?.[0];
     if (file && file.type === 'text/csv') {
       setCsvFile(file);
+      setError(null);
     } else {
       setError('Please select a valid CSV file');
     }
@@ -323,188 +326,498 @@ function VerifyContent() {
     }
   };
 
+  // Generate PDF Report
+  const generatePdfReport = () => {
+    if (!result) return;
+
+    const reportWindow = window.open('', '_blank');
+    if (!reportWindow) {
+      setError('Please allow popups to download the report');
+      return;
+    }
+
+    const reportHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>NoTamperData Verification Report</title>
+      <style>
+        body { 
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+          margin: 40px; 
+          color: #202124; 
+          line-height: 1.6;
+        }
+        .header { 
+          text-align: center; 
+          border-bottom: 3px solid #4285F4; 
+          padding-bottom: 20px; 
+          margin-bottom: 30px; 
+        }
+        .logo { 
+          color: #4285F4; 
+          font-size: 28px; 
+          font-weight: bold; 
+          margin-bottom: 10px; 
+        }
+        .subtitle { 
+          color: #5f6368; 
+          font-size: 14px; 
+        }
+        .status { 
+          text-align: center; 
+          margin: 30px 0; 
+          padding: 20px; 
+          border-radius: 8px; 
+        }
+        .verified { 
+          background-color: #e8f5e8; 
+          border: 2px solid #34a853; 
+          color: #137333; 
+        }
+        .not-verified { 
+          background-color: #fce8e6; 
+          border: 2px solid #ea4335; 
+          color: #d93025; 
+        }
+        .status-icon { 
+          font-size: 48px; 
+          margin-bottom: 10px; 
+        }
+        .status-title { 
+          font-size: 24px; 
+          font-weight: bold; 
+          margin-bottom: 5px; 
+        }
+        .details { 
+          background-color: #f8f9fa; 
+          padding: 20px; 
+          border-radius: 8px; 
+          margin-top: 20px; 
+        }
+        .detail-row { 
+          display: flex; 
+          justify-content: space-between; 
+          padding: 8px 0; 
+          border-bottom: 1px solid #e8eaed; 
+        }
+        .detail-row:last-child { 
+          border-bottom: none; 
+        }
+        .detail-label { 
+          font-weight: 600; 
+          color: #5f6368; 
+        }
+        .detail-value { 
+          font-family: monospace; 
+          word-break: break-all; 
+          max-width: 60%; 
+        }
+        .footer { 
+          text-align: center; 
+          margin-top: 40px; 
+          padding-top: 20px; 
+          border-top: 1px solid #e8eaed; 
+          color: #5f6368; 
+          font-size: 12px; 
+        }
+        @media print {
+          body { margin: 20px; }
+          .no-print { display: none; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div class="logo">🛡️ NoTamperData</div>
+        <div class="subtitle">Blockchain Dataset Verification Report</div>
+        <div class="subtitle">Generated on ${new Date().toLocaleString()}</div>
+      </div>
+
+      <div class="status ${result.verified ? 'verified' : 'not-verified'}">
+        <div class="status-icon">${result.verified ? '✅' : '❌'}</div>
+        <div class="status-title">${result.verified ? 'Dataset Verified' : 'Verification Failed'}</div>
+        <div>${result.message}</div>
+      </div>
+
+      ${result.verified ? `
+        <div class="details">
+          <h3 style="margin-top: 0; color: #202124;">Verification Details</h3>
+          ${result.metadata?.form_id ? `
+            <div class="detail-row">
+              <span class="detail-label">Form ID:</span>
+              <span class="detail-value">${result.metadata.form_id}</span>
+            </div>
+          ` : ''}
+          ${result.metadata?.response_id ? `
+            <div class="detail-row">
+              <span class="detail-label">Response ID:</span>
+              <span class="detail-value">${result.metadata.response_id}</span>
+            </div>
+          ` : ''}
+          ${result.metadata?.timestamp ? `
+            <div class="detail-row">
+              <span class="detail-label">Timestamp:</span>
+              <span class="detail-value">${new Date(result.metadata.timestamp).toLocaleString()}</span>
+            </div>
+          ` : ''}
+          ${result.transactionHash ? `
+            <div class="detail-row">
+              <span class="detail-label">Transaction Hash:</span>
+              <span class="detail-value">${result.transactionHash}</span>
+            </div>
+          ` : ''}
+          ${result.network ? `
+            <div class="detail-row">
+              <span class="detail-label">Blockchain Network:</span>
+              <span class="detail-value">${result.network}</span>
+            </div>
+          ` : ''}
+          ${result.blockchainProof?.confirmations ? `
+            <div class="detail-row">
+              <span class="detail-label">Confirmations:</span>
+              <span class="detail-value">${result.blockchainProof.confirmations}</span>
+            </div>
+          ` : ''}
+          ${generatedHash ? `
+            <div class="detail-row">
+              <span class="detail-label">Dataset Hash:</span>
+              <span class="detail-value">${generatedHash}</span>
+            </div>
+          ` : ''}
+        </div>
+      ` : ''}
+
+      <div class="footer">
+        <p><strong>NoTamperData Verification System</strong></p>
+        <p>This report certifies that the dataset has been cryptographically verified against blockchain records.</p>
+        <p>The verification process ensures data integrity and authenticity through immutable blockchain storage.</p>
+        <p>For more information, visit: notamperdata.com</p>
+      </div>
+      
+      <script>
+        window.onload = function() {
+          window.print();
+        }
+      </script>
+    </body>
+    </html>
+    `;
+
+    reportWindow.document.write(reportHtml);
+    reportWindow.document.close();
+  };
+
   return (
-    <div className="container mx-auto px-4 py-8">
-      <main className="flex flex-col items-center justify-center min-h-[70vh]">
-        <h1 className="text-3xl font-bold mb-8 text-center text-[#4285F4]">
-          NoTamperData Dataset Verification
-        </h1>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-[#4285F4] rounded-full mb-4">
+            <Shield className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-4xl font-bold text-[#202124] mb-2">
+            Dataset Verification
+          </h1>
+          <p className="text-lg text-[#5f6368] max-w-2xl mx-auto">
+            Verify the integrity and authenticity of your research data using blockchain technology
+          </p>
+        </div>
 
-        <div className="w-full max-w-lg">
-          <div className="bg-white shadow-md rounded-lg p-6 border border-gray-200">
-            <div className="border-l-4 border-[#4285F4] pl-3 mb-6">
-              <h2 className="text-xl font-semibold text-[#202124]">Verify Dataset</h2>
-              <p className="text-sm text-gray-500">Check research data validity using blockchain</p>
+        {/* Main Content */}
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white shadow-xl rounded-2xl border border-gray-100 overflow-hidden">
+            {/* Card Header */}
+            <div className="bg-gradient-to-r from-[#4285F4] to-[#0033AD] px-8 py-6">
+              <h2 className="text-xl font-semibold text-white flex items-center">
+                <Lock className="w-5 h-5 mr-2" />
+                Blockchain Verification Portal
+              </h2>
+              <p className="text-blue-100 text-sm mt-1">
+                Cryptographically verify your dataset against immutable blockchain records
+              </p>
             </div>
-            
-            {/* Verification Method Selector */}
-            <div className="mb-6">
-              <div className="flex border border-gray-300 rounded-md overflow-hidden">
-                <button
-                  onClick={() => setVerificationMethod('hash')}
-                  className={`flex-1 py-2 px-3 text-sm font-medium ${
-                    verificationMethod === 'hash'
-                      ? 'bg-[#4285F4] text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  Hash
-                </button>
-                <button
-                  onClick={() => setVerificationMethod('csv')}
-                  className={`flex-1 py-2 px-3 text-sm font-medium ${
-                    verificationMethod === 'csv'
-                      ? 'bg-[#4285F4] text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  CSV
-                </button>
-              </div>
-            </div>
-            
-            {/* Input Area - Fixed height to prevent jumping */}
-            <div className="mb-4 min-h-[120px]">
-              {/* Hash Input */}
-              {verificationMethod === 'hash' && (
-                <div>
-                  <label htmlFor="hash" className="block text-sm font-medium text-gray-700 mb-1">
-                    Response Hash:
-                  </label>
-                  <input
-                    type="text"
-                    id="hash"
-                    value={hash}
-                    onChange={(e) => setHash(e.target.value)}
-                    placeholder="Enter the SHA-256 hash"
-                    className="w-full text-black px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#4285F4] focus:border-[#4285F4]"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Enter the 64-character hash from your verification tool.
-                  </p>
-                </div>
-              )}
 
-              {/* CSV Upload */}
-              {verificationMethod === 'csv' && (
-                <div>
-                  <label htmlFor="csv-file" className="block text-sm font-medium text-gray-700 mb-1">
-                    CSV File:
-                  </label>
-                  <input
-                    type="file"
-                    id="csv-file"
-                    accept=".csv"
-                    onChange={handleFileUpload}
-                    className="w-full text-black px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#4285F4] focus:border-[#4285F4]"
-                  />
-                  {csvFile && (
-                    <p className="mt-1 text-xs text-green-600">
-                      Selected: {csvFile.name} ({(csvFile.size / 1024).toFixed(1)} KB)
-                    </p>
-                  )}
-                  <p className="mt-1 text-xs text-gray-500">
-                    Upload CSV file exported from your Google Form.
-                  </p>
+            <div className="p-8">
+              {/* Method Selection */}
+              <div className="mb-8">
+                <label className="block text-sm font-semibold text-[#202124] mb-3">
+                  Verification Method
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => setVerificationMethod('hash')}
+                    className={`relative p-4 rounded-xl border-2 transition-all duration-200 ${
+                      verificationMethod === 'hash'
+                        ? 'border-[#4285F4] bg-[#4285F4]/5 shadow-md'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <Hash className={`w-6 h-6 mx-auto mb-2 ${
+                      verificationMethod === 'hash' ? 'text-[#4285F4]' : 'text-gray-400'
+                    }`} />
+                    <div className="text-sm font-medium text-[#202124]">Hash Verification</div>
+                    <div className="text-xs text-[#5f6368] mt-1">Verify using SHA-256 hash</div>
+                  </button>
+                  
+                  <button
+                    onClick={() => setVerificationMethod('csv')}
+                    className={`relative p-4 rounded-xl border-2 transition-all duration-200 ${
+                      verificationMethod === 'csv'
+                        ? 'border-[#4285F4] bg-[#4285F4]/5 shadow-md'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <FileText className={`w-6 h-6 mx-auto mb-2 ${
+                      verificationMethod === 'csv' ? 'text-[#4285F4]' : 'text-gray-400'
+                    }`} />
+                    <div className="text-sm font-medium text-[#202124]">CSV Verification</div>
+                    <div className="text-xs text-[#5f6368] mt-1">Upload CSV file directly</div>
+                  </button>
                 </div>
-              )}
-            </div>
-            
-            {/* Processing Step Display */}
-            {processingStep && (
-              <div className="mb-4 p-3 bg-blue-50 border-l-4 border-[#4285F4] rounded-md">
-                <p className="text-sm text-blue-700">
-                  <LoadingSpinner className="inline mr-2 h-3 w-3" />
-                  {processingStep}
-                </p>
               </div>
-            )}
-            
-            {/* Verify Button */}
-            <button
-              onClick={handleVerify}
-              disabled={loading}
-              className="w-full bg-[#4285F4] text-white py-2 px-4 rounded-md hover:bg-[#366ac7] focus:outline-none focus:ring-2 focus:ring-[#4285F4] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? (
-                <span className="flex items-center justify-center">
-                  <LoadingSpinner className="mr-2 h-4 w-4" />
-                  Verifying...
-                </span>
-              ) : (
-                'Verify'
-              )}
-            </button>
-            
-            {/* Show Generated Hash */}
-            {generatedHash && (
-              <div className="mt-4 p-3 bg-[#e8f0fe] border-l-4 border-[#4285F4] rounded-md">
-                <h4 className="text-sm font-medium text-gray-700">Generated Hash:</h4>
-                <p className="mt-1 text-xs font-mono break-all text-gray-600">{generatedHash}</p>
-              </div>
-            )}
-            
-            {/* Error Display */}
-            {error && (
-              <div className="mt-4 p-3 bg-red-50 border-l-4 border-red-400 rounded-md text-red-700">
-                {error}
-              </div>
-            )}
-            
-            {/* Result Display */}
-            {result && (
-              <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-md">
-                <h3 className={`text-lg font-medium ${result.verified ? 'text-green-600' : 'text-red-600'}`}>
-                  {result.verified ? '✅ Verified' : '❌ Not Verified'}
-                </h3>
-                <p className="mt-2 text-gray-700">{result.message}</p>
-                
-                {result.verified && result.metadata && (
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-2 text-sm">
-                      <span className="font-semibold text-gray-600">Form ID:</span>
-                      <span className="text-gray-700">{result.metadata.form_id}</span>
-                      
-                      <span className="font-semibold text-gray-600">Response ID:</span>
-                      <span className="text-gray-700">{result.metadata.response_id}</span>
-                      
-                      <span className="font-semibold text-gray-600">Timestamp:</span>
-                      <span className="text-gray-700">{new Date(result.metadata.timestamp).toLocaleString()}</span>
-                      
-                      {result.transactionHash && (
-                        <>
-                          <span className="font-semibold text-gray-600">Transaction:</span>
-                          <span className="text-gray-700 font-mono text-xs break-all">{result.transactionHash}</span>
-                        </>
-                      )}
-                      
-                      {result.network && (
-                        <>
-                          <span className="font-semibold text-gray-600">Network:</span>
-                          <span className="text-gray-700">{result.network}</span>
-                        </>
-                      )}
-                      
-                      {result.blockchainProof?.confirmations && (
-                        <>
-                          <span className="font-semibold text-gray-600">Confirmations:</span>
-                          <span className="text-gray-700">{result.blockchainProof.confirmations}</span>
-                        </>
-                      )}
+
+              {/* Input Section */}
+              <div className="mb-8">
+                {verificationMethod === 'hash' ? (
+                  <div>
+                    <label htmlFor="hash" className="block text-sm font-semibold text-[#202124] mb-3">
+                      Response Hash
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        id="hash"
+                        value={hash}
+                        onChange={(e) => setHash(e.target.value)}
+                        placeholder="Enter your 64-character SHA-256 hash"
+                        className="w-full px-4 py-3 pl-12 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[#4285F4] focus:border-[#4285F4] text-[#202124] placeholder-gray-400"
+                      />
+                      <Hash className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
                     </div>
+                    <p className="mt-2 text-xs text-[#5f6368]">
+                      This hash should be exactly 64 characters long and provided by your verification tool
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <label htmlFor="csv-file" className="block text-sm font-semibold text-[#202124] mb-3">
+                      Upload CSV Dataset
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="file"
+                        id="csv-file"
+                        accept=".csv"
+                        onChange={handleFileUpload}
+                        className="w-full px-4 py-3 pl-12 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[#4285F4] focus:border-[#4285F4] text-[#202124] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-medium file:bg-[#4285F4] file:text-white hover:file:bg-[#366ac7]"
+                      />
+                      <Upload className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
+                    </div>
+                    {csvFile && (
+                      <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <p className="text-sm text-green-700 flex items-center">
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          <strong>{csvFile.name}</strong> ({(csvFile.size / 1024).toFixed(1)} KB)
+                        </p>
+                      </div>
+                    )}
+                    <p className="mt-2 text-xs text-[#5f6368]">
+                      Upload the CSV file exported directly from your Google Form responses
+                    </p>
                   </div>
                 )}
               </div>
-            )}
+
+              {/* Processing Status */}
+              {processingStep && (
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                  <div className="flex items-center text-blue-700">
+                    <LoadingSpinner className="w-5 h-5 mr-3" />
+                    <span className="font-medium">{processingStep}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Generated Hash Display */}
+              {generatedHash && (
+                <div className="mb-6 p-4 bg-[#e8f0fe] border border-[#4285F4] rounded-xl">
+                  <h4 className="text-sm font-semibold text-[#202124] mb-2 flex items-center">
+                    <Hash className="w-4 h-4 mr-2" />
+                    Generated Dataset Hash
+                  </h4>
+                  <p className="text-xs font-mono break-all text-[#5f6368] bg-white p-3 rounded-lg border">
+                    {generatedHash}
+                  </p>
+                </div>
+              )}
+
+              {/* Verify Button */}
+              <button
+                onClick={handleVerify}
+                disabled={loading || (verificationMethod === 'hash' && !hash) || (verificationMethod === 'csv' && !csvFile)}
+                className="w-full bg-gradient-to-r from-[#4285F4] to-[#0033AD] text-white py-4 px-6 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-md"
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center">
+                    <LoadingSpinner className="mr-3 h-5 w-5" />
+                    Verifying on Blockchain...
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center">
+                    <Shield className="mr-2 h-5 w-5" />
+                    Verify Dataset Integrity
+                  </span>
+                )}
+              </button>
+
+              {/* Error Display */}
+              {error && (
+                <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+                  <div className="flex items-center text-red-700">
+                    <XCircle className="w-5 h-5 mr-3 flex-shrink-0" />
+                    <span className="font-medium">{error}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Verification Result */}
+              {result && (
+                <div className="mt-8">
+                  <div className={`p-6 rounded-xl border-2 ${
+                    result.verified 
+                      ? 'bg-green-50 border-green-200' 
+                      : 'bg-red-50 border-red-200'
+                  }`}>
+                    <div className="text-center mb-6">
+                      <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4 ${
+                        result.verified ? 'bg-green-100' : 'bg-red-100'
+                      }`}>
+                        {result.verified ? (
+                          <CheckCircle className="w-8 h-8 text-green-600" />
+                        ) : (
+                          <XCircle className="w-8 h-8 text-red-600" />
+                        )}
+                      </div>
+                      <h3 className={`text-2xl font-bold ${
+                        result.verified ? 'text-green-700' : 'text-red-700'
+                      }`}>
+                        {result.verified ? 'Dataset Verified Successfully' : 'Verification Failed'}
+                      </h3>
+                      <p className={`mt-2 ${
+                        result.verified ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {result.message}
+                      </p>
+                    </div>
+
+                    {result.verified && result.metadata && (
+                      <div className="bg-white rounded-lg p-4 border border-gray-200">
+                        <h4 className="text-lg font-semibold text-[#202124] mb-4 flex items-center">
+                          <FileText className="w-5 h-5 mr-2" />
+                          Blockchain Verification Details
+                        </h4>
+                        <div className="space-y-3">
+                          {result.metadata.form_id && (
+                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                              <span className="font-medium text-[#5f6368]">Form ID</span>
+                              <span className="font-mono text-sm text-[#202124]">{result.metadata.form_id}</span>
+                            </div>
+                          )}
+                          {result.metadata.response_id && (
+                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                              <span className="font-medium text-[#5f6368]">Response ID</span>
+                              <span className="font-mono text-sm text-[#202124]">{result.metadata.response_id}</span>
+                            </div>
+                          )}
+                          {result.metadata.timestamp && (
+                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                              <span className="font-medium text-[#5f6368]">Verification Time</span>
+                              <span className="font-mono text-sm text-[#202124] flex items-center">
+                                <Clock className="w-4 h-4 mr-2" />
+                                {new Date(result.metadata.timestamp).toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                          {result.transactionHash && (
+                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                              <span className="font-medium text-[#5f6368]">Transaction Hash</span>
+                              <span className="font-mono text-xs text-[#202124] break-all max-w-xs">{result.transactionHash}</span>
+                            </div>
+                          )}
+                          {result.network && (
+                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                              <span className="font-medium text-[#5f6368]">Blockchain Network</span>
+                              <span className="font-mono text-sm text-[#202124]">{result.network}</span>
+                            </div>
+                          )}
+                          {result.blockchainProof?.confirmations && (
+                            <div className="flex justify-between items-center py-2">
+                              <span className="font-medium text-[#5f6368]">Network Confirmations</span>
+                              <span className="font-mono text-sm text-[#202124]">{result.blockchainProof.confirmations}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Download Report Button */}
+                    {result.verified && (
+                      <div className="mt-6 text-center">
+                        <button
+                          onClick={generatePdfReport}
+                          className="inline-flex items-center px-6 py-3 bg-white border-2 border-green-600 text-green-700 rounded-xl font-semibold hover:bg-green-50 transition-all duration-200 shadow-sm hover:shadow-md"
+                        >
+                          <Download className="w-5 h-5 mr-2" />
+                          Download Verification Report
+                        </button>
+                        <p className="text-xs text-green-600 mt-2">
+                          Generate a PDF certificate for your records
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Info Cards */}
+          <div className="mt-8 grid md:grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+              <div className="flex items-center mb-3">
+                <div className="w-10 h-10 bg-[#34a853]/10 rounded-lg flex items-center justify-center mr-3">
+                  <Shield className="w-5 h-5 text-[#34a853]" />
+                </div>
+                <h3 className="font-semibold text-[#202124]">Blockchain Security</h3>
+              </div>
+              <p className="text-sm text-[#5f6368]">
+                Your data integrity is verified using immutable blockchain technology, ensuring tamper-proof verification.
+              </p>
+            </div>
+
+            <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+              <div className="flex items-center mb-3">
+                <div className="w-10 h-10 bg-[#4285F4]/10 rounded-lg flex items-center justify-center mr-3">
+                  <Lock className="w-5 h-5 text-[#4285F4]" />
+                </div>
+                <h3 className="font-semibold text-[#202124]">Privacy Protected</h3>
+              </div>
+              <p className="text-sm text-[#5f6368]">
+                Only cryptographic hashes are stored on the blockchain - your actual data remains private and secure.
+              </p>
+            </div>
           </div>
         </div>
-        
-        <div className="mt-8 text-center text-sm text-gray-500">
-          <div className="flex items-center justify-center">
-            <p>Powered by NoTamperData verification technology</p>
+
+        {/* Footer */}
+        <div className="mt-12 text-center">
+          <div className="inline-flex items-center text-sm text-[#5f6368]">
+            <Shield className="w-4 h-4 mr-2" />
+            Powered by <strong className="ml-1 text-[#4285F4]">NoTamperData</strong> verification technology
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
@@ -512,17 +825,23 @@ function VerifyContent() {
 // Loading fallback for Suspense
 function VerifyLoadingFallback() {
   return (
-    <div className="container mx-auto px-4 py-8">
-      <main className="flex flex-col items-center justify-center min-h-[70vh]">
-        <div className="w-full max-w-lg">
-          <div className="bg-white shadow-md rounded-lg p-6 border border-gray-200">
-            <div className="flex items-center justify-center py-12">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white shadow-xl rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="bg-gradient-to-r from-[#4285F4] to-[#0033AD] px-8 py-6">
+              <h2 className="text-xl font-semibold text-white flex items-center">
+                <Lock className="w-5 h-5 mr-2" />
+                Blockchain Verification Portal
+              </h2>
+            </div>
+            <div className="flex items-center justify-center py-16">
               <LoadingSpinner className="h-8 w-8 mr-3" />
-              <span className="text-gray-600">Loading verification page...</span>
+              <span className="text-[#5f6368] text-lg">Loading verification portal...</span>
             </div>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
