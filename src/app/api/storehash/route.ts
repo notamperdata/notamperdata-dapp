@@ -19,6 +19,10 @@ import {
   NoTamperData_CONSTANTS
 } from '@/lib/contract';
 
+
+if (typeof BigInt !== 'undefined') {
+  (BigInt.prototype as any).toJSON = function() { return this.toString(); };
+}
 interface StoreHashRequest {
   hash: string;
   metadata?: any;
