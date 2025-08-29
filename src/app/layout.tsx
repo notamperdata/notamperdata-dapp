@@ -5,11 +5,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import './globals.css';
 
-// Fix BigInt serialization for production
-if (typeof BigInt !== 'undefined') {
- (BigInt.prototype as any).toJSON = function() { return this.toString(); };
-}
-
 const roboto = Roboto({ 
  subsets: ['latin'],
  weight: ['400', '500', '700'],

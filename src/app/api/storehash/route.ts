@@ -17,10 +17,16 @@ import {
 } from '@/lib/contract';
 import { paymentUtils } from '@/lib/paymentConfig';
 
-// Fix BigInt serialization for JSON responses
-if (typeof BigInt !== 'undefined') {
-  (BigInt.prototype as any).toJSON = function() { return this.toString(); };
-}
+
+// Safe JSON serialization function for BigInt handling
+const safeBigIntStringify = (obj: any): string => {
+  return JSON.stringify(obj, (key, value) => {
+    if (typeof value === 'bigint') {
+      return value.toString();
+    }
+    return value;
+  });
+};
 
 // Environment validation at startup
 const ENV_VALIDATION = {
@@ -347,8 +353,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<StoreHash
     // Get platform address for response
     const platformAddress = paymentUtils.getPlatformAddress(networkId);
     
-    // Return success response with transaction details
-    return NextResponse.json({
+    // Prepare response data with potential BigInt values
+    const responseData = {
       success: true,
       data: {
         transactionHash: txHash,
@@ -370,6 +376,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<StoreHash
         },
         platformAddress // Return platform address instead of contract address
       }
+    };
+    
+    // Use safe BigInt serialization for response only
+    return new NextResponse(safeBigIntStringify(responseData), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      }
     });
 
   } catch (error) {
@@ -377,14 +391,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<StoreHash
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     
-    return NextResponse.json(
-      { 
-        success: false,
-        error: 'Internal server error while storing hash', 
-        message: errorMessage
-      },
-      { status: 500 }
-    );
+    const errorResponse = { 
+      success: false,
+      error: 'Internal server error while storing hash', 
+      message: errorMessage
+    };
+    
+    // Use safe BigInt serialization for error response too
+    return new NextResponse(safeBigIntStringify(errorResponse), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
   }
 }
 
@@ -394,7 +413,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<StoreHash
  * Returns information about the store hash endpoint
  */
 export async function GET(): Promise<NextResponse> {
-  return NextResponse.json({
+  const infoData = {
     endpoint: 'storehash',
     method: 'POST',
     description: 'Store hash on Cardano blockchain using platform wallet self-send architecture',
@@ -429,6 +448,13 @@ export async function GET(): Promise<NextResponse> {
         blockchainProof: 'object',
         platformAddress: 'string'
       }
+    }
+  };
+  
+  // Use safe BigInt serialization for GET response too
+  return new NextResponse(safeBigIntStringify(infoData), {
+    headers: {
+      'Content-Type': 'application/json',
     }
   });
 }
