@@ -30,10 +30,10 @@ export interface AccessTokenStatusResult {
 }
 
 export class AccessTokenManager {
-  // Exchange rate: 1 ADA = 1 token
-  private static readonly ADA_TO_TOKEN_RATE = 1;
+  // Exchange rate: 1 ADA = 5 tokens
+  private static readonly ADA_TO_TOKEN_RATE = 5;
   
-  // Minimum payment amount in ADA
+  // Minimum payment amount in ADA (unchanged)
   private static readonly MIN_ADA_AMOUNT = 1;
 
   /**
@@ -81,7 +81,7 @@ export class AccessTokenManager {
         };
       }
 
-      // Calculate tokens (1 ADA = 1 token, rounded down)
+      // Calculate tokens using new 5:1 ratio (5 tokens per ADA, rounded down)
       const tokenAmount = Math.floor(adaAmount * this.ADA_TO_TOKEN_RATE);
       
       if (tokenAmount < 1) {
@@ -90,6 +90,8 @@ export class AccessTokenManager {
           error: 'Payment amount too small to generate tokens' 
         };
       }
+
+      console.log(`Token calculation: ${adaAmount} ADA × ${this.ADA_TO_TOKEN_RATE} = ${tokenAmount} tokens`);
 
       // Generate unique access token ID
       let accessTokenId: string;
@@ -120,7 +122,7 @@ export class AccessTokenManager {
 
       await newAccessToken.save();
 
-      console.log(`Access token created successfully: ${accessTokenId} with ${tokenAmount} tokens`);
+      console.log(`Access token created successfully: ${accessTokenId} with ${tokenAmount} tokens (${this.ADA_TO_TOKEN_RATE}:1 ratio)`);
 
       return { 
         success: true, 
@@ -175,7 +177,7 @@ export class AccessTokenManager {
         };
       }
 
-      // Validate token consumption amount - FIXED: Allow 0 for validation-only checks
+      // Validate token consumption amount - allow 0 for validation-only checks
       if (!Number.isInteger(tokensToConsume) || tokensToConsume < 0) {
         return { 
           valid: false, 
@@ -420,11 +422,28 @@ export class AccessTokenManager {
   }
 
   /**
-   * Calculate token amount from ADA payment
+   * Calculate token amount from ADA payment using new 5:1 ratio
    * @param adaAmount - Amount of ADA paid
-   * @returns Number of tokens that will be granted
+   * @returns Number of tokens that will be granted (5 tokens per ADA)
    */
   static calculateTokenAmount(adaAmount: number): number {
     return Math.floor(adaAmount * this.ADA_TO_TOKEN_RATE);
+  }
+
+  /**
+   * Calculate ADA cost for desired number of tokens
+   * @param tokenAmount - Number of tokens desired
+   * @returns ADA amount required (at 5 tokens per ADA)
+   */
+  static calculateAdaCost(tokenAmount: number): number {
+    return Math.ceil(tokenAmount / this.ADA_TO_TOKEN_RATE);
+  }
+
+  /**
+   * Get current token rate for display purposes
+   * @returns Current ADA to token exchange rate
+   */
+  static getTokenRate(): number {
+    return this.ADA_TO_TOKEN_RATE;
   }
 }
