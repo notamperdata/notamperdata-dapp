@@ -6,7 +6,8 @@ import {
   paymentValidation, 
   paymentUtils, 
   transactionMetadata,
-  NetworkType} from '@/lib/paymentConfig';
+  NetworkType
+} from '@/lib/paymentConfig';
 
 export interface PaymentVerificationResult {
   valid: boolean;
@@ -96,12 +97,13 @@ export class PaymentProcessor {
     // Convert NetworkType to networkId
     this.networkId = this.network === 'Mainnet' ? 1 : 0;
     
-    // Use networkId instead of NetworkType for utility functions
+    // Use platform address instead of contract address for new self-send architecture
     this.platformAddress = paymentUtils.getPlatformAddress(this.networkId);
     this.blockfrostProjectId = process.env.NEXT_PUBLIC_BLOCKFROST_PROJECT_ID || '';
     this.blockfrostUrl = paymentUtils.getBlockfrostUrl(this.networkId);
 
-    console.log(`Payment processor initialized for network: ${this.network}`);
+    console.log(`Payment processor initialized for self-send architecture:`);
+    console.log(`Network: ${this.network} (ID: ${this.networkId})`);
     console.log(`Platform address: ${this.platformAddress}`);
 
     if (!this.blockfrostProjectId) {
@@ -110,16 +112,18 @@ export class PaymentProcessor {
   }
 
   /**
-   * Process payment by building and submitting a simple ADA transfer
+   * Process payment by building and submitting transaction to platform address
+   * Updated: Uses platform address instead of contract for cost efficiency
    * @param request - Payment request details
    * @returns Promise with payment result
    */
   async processPayment(request: PaymentRequest): Promise<PaymentProcessResult> {
     try {
-      console.log('Processing payment request:', {
+      console.log('Processing payment request (self-send architecture):', {
         amount: request.amount,
         platformAddress: request.platformAddress,
-        email: request.email
+        email: request.email,
+        expectedTokens: paymentValidation.calculateTokens(request.amount) // Uses new 5:1 ratio
       });
 
       // Validate payment request
@@ -131,7 +135,7 @@ export class PaymentProcessor {
         };
       }
 
-      // Build the transaction using the wallet's built-in capabilities
+      // Build and submit transaction to platform address
       const txHash = await this.buildAndSubmitTransaction(request);
 
       console.log(`Payment transaction submitted successfully: ${txHash}`);
@@ -170,7 +174,7 @@ export class PaymentProcessor {
   }
 
   /**
-   * Build and submit a simple ADA transfer transaction
+   * Build and submit transaction to platform address (self-send when using platform wallet)
    * @param request - Payment request details
    * @returns Promise with transaction hash
    */
@@ -185,19 +189,16 @@ export class PaymentProcessor {
       // Convert amount to lovelace
       const lovelaceAmount = paymentUtils.adaToLovelace(request.amount);
 
-      // For simple transfers, we'll use the wallet's native transaction building
-      // Most Cardano wallets have built-in methods for simple transfers
-      
       // Check if wallet supports direct transfer
       if (request.walletApi.transfer) {
-        // Some wallets support direct transfer methods
+        // Direct transfer to platform address with metadata
         const txHash = await request.walletApi.transfer({
           to: request.platformAddress,
           amount: lovelaceAmount.toString(),
           metadata: request.metadata ? transactionMetadata.createPaymentMetadata(
             request.amount, 
             request.email, 
-            this.networkId, // Pass networkId instead of metadata object
+            this.networkId,
             request.metadata
           ) : undefined
         });
@@ -227,15 +228,12 @@ export class PaymentProcessor {
    * @returns Promise with unsigned transaction
    */
   private async buildTransactionWithWallet(request: PaymentRequest): Promise<string> {
-    // This is a simplified approach - different wallets have different APIs
-    // In a production environment, you might need to handle different wallet types
-    
     const lovelaceAmount = paymentUtils.adaToLovelace(request.amount);
     
-    // Basic transaction structure for most Cardano wallets
+    // Transaction structure for payment to platform address
     const txData = {
       outputs: [{
-        address: request.platformAddress,
+        address: request.platformAddress, // Platform address (self-send when using platform wallet)
         amount: {
           lovelace: lovelaceAmount.toString()
         }
@@ -243,7 +241,7 @@ export class PaymentProcessor {
       metadata: request.metadata ? transactionMetadata.createPaymentMetadata(
         request.amount, 
         request.email, 
-        this.networkId, // Pass networkId instead of metadata object
+        this.networkId,
         request.metadata
       ) : undefined
     };
@@ -259,6 +257,7 @@ export class PaymentProcessor {
 
   /**
    * Validate payment request
+   * Updated: Uses new 5:1 token ratio for validation feedback
    * @param request - Payment request to validate
    * @returns Validation result
    */
@@ -268,11 +267,12 @@ export class PaymentProcessor {
       return { valid: false, error: 'Wallet API not provided' };
     }
 
-    // Check amount
+    // Check amount with updated token calculation feedback
     if (!paymentValidation.isValidAmount(request.amount)) {
+      const expectedTokens = paymentValidation.calculateTokens(request.amount);
       return { 
         valid: false, 
-        error: `Payment amount must be between ${PAYMENT_CONSTANTS.MIN_PAYMENT_AMOUNT} and ${PAYMENT_CONSTANTS.MAX_PAYMENT_AMOUNT} ADA` 
+        error: `Payment amount must be between ${PAYMENT_CONSTANTS.MIN_PAYMENT_AMOUNT} and ${PAYMENT_CONSTANTS.MAX_PAYMENT_AMOUNT} ADA (${PAYMENT_CONSTANTS.MIN_PAYMENT_AMOUNT * PAYMENT_CONSTANTS.TOKEN_RATE}-${PAYMENT_CONSTANTS.MAX_PAYMENT_AMOUNT * PAYMENT_CONSTANTS.TOKEN_RATE} tokens at ${PAYMENT_CONSTANTS.TOKEN_RATE}:1 ratio)` 
       };
     }
 
@@ -290,7 +290,8 @@ export class PaymentProcessor {
   }
 
   /**
-   * Verify payment transaction and extract ADA amount sent to platform
+   * Verify payment transaction and extract ADA amount sent to platform address
+   * Updated: Checks platform address instead of contract address in new architecture
    * @param txHash - Cardano transaction hash to verify
    * @returns Promise with verification result
    */
@@ -322,7 +323,7 @@ export class PaymentProcessor {
       const detailsResult = await this.getTransactionDetails(txHash);
       const txDetails = detailsResult.success ? detailsResult.data : null;
 
-      // Find outputs sent to platform address
+      // Find outputs sent to platform address (updated from contract address)
       const platformOutputs = txUtxos.outputs.filter(output => 
         output.address === this.platformAddress
       );
@@ -347,8 +348,9 @@ export class PaymentProcessor {
 
       console.log(`Total lovelace found: ${totalLovelace}`);
       console.log(`ADA amount: ${adaAmount}`);
+      console.log(`Expected tokens (at ${PAYMENT_CONSTANTS.TOKEN_RATE}:1 ratio): ${paymentValidation.calculateTokens(adaAmount)}`);
 
-      // Validate minimum payment
+      // Validate minimum payment using updated constants
       if (!paymentValidation.isValidAmount(adaAmount)) {
         return { 
           valid: false, 
@@ -369,7 +371,7 @@ export class PaymentProcessor {
         }
       }
 
-      console.log(`Payment verified successfully: ${adaAmount} ADA`);
+      console.log(`Payment verified successfully: ${adaAmount} ADA (${paymentValidation.calculateTokens(adaAmount)} tokens at ${PAYMENT_CONSTANTS.TOKEN_RATE}:1 ratio)`);
 
       return {
         valid: true,
@@ -461,6 +463,9 @@ export class PaymentProcessor {
       });
 
       if (!response.ok) {
+        if (response.status === 404) {
+          return { success: false, error: 'Transaction not found' };
+        }
         return { success: false, error: `API error: ${response.status}` };
       }
 
@@ -474,7 +479,7 @@ export class PaymentProcessor {
   }
 
   /**
-   * Get current blockchain tip height
+   * Get current block height for confirmation calculations
    */
   private async getCurrentBlockHeight(): Promise<number | null> {
     try {
@@ -502,71 +507,46 @@ export class PaymentProcessor {
   }
 
   /**
-   * Check if transaction is confirmed (has at least 1 confirmation)
-   */
-  async isTransactionConfirmed(txHash: string): Promise<boolean> {
-    try {
-      const result = await this.getTransactionDetails(txHash);
-      return result.success && !!result.data?.block_height;
-    } catch (error) {
-      console.error('Error checking transaction confirmation:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Get platform address being used
+   * Get platform address for the current network
+   * @returns Platform address for payments
    */
   getPlatformAddress(): string {
     return this.platformAddress;
   }
 
   /**
-   * Get network being used
+   * Get network information
+   * @returns Network details
    */
-  getNetwork(): string {
-    return this.network;
+  getNetworkInfo(): { 
+    network: NetworkType; 
+    networkId: number; 
+    platformAddress: string;
+    tokenRate: number;
+  } {
+    return {
+      network: this.network,
+      networkId: this.networkId,
+      platformAddress: this.platformAddress,
+      tokenRate: PAYMENT_CONSTANTS.TOKEN_RATE // Returns new 5:1 ratio
+    };
   }
 
   /**
-   * Health check for payment processor
+   * Calculate tokens for given ADA amount using new 5:1 ratio
+   * @param adaAmount - Amount of ADA
+   * @returns Number of tokens (5 tokens per ADA)
    */
-  async healthCheck(): Promise<{ healthy: boolean; error?: string; network?: string }> {
-    try {
-      if (!this.blockfrostProjectId) {
-        return {
-          healthy: false,
-          error: 'Blockfrost project ID not configured',
-          network: this.network
-        };
-      }
+  calculateTokens(adaAmount: number): number {
+    return paymentValidation.calculateTokens(adaAmount);
+  }
 
-      const response = await fetch(`${this.blockfrostUrl}/health`, {
-        headers: {
-          'project_id': this.blockfrostProjectId
-        }
-      });
-
-      if (!response.ok) {
-        return {
-          healthy: false,
-          error: `Blockfrost API error: ${response.status}`,
-          network: this.network
-        };
-      }
-
-      return {
-        healthy: true,
-        network: this.network
-      };
-
-    } catch (error) {
-      console.error('Payment processor health check failed:', error);
-      return {
-        healthy: false,
-        error: 'Failed to connect to blockchain API',
-        network: this.network
-      };
-    }
+  /**
+   * Calculate ADA cost for desired number of tokens
+   * @param tokenAmount - Number of tokens desired
+   * @returns ADA amount required (at 5 tokens per ADA)
+   */
+  calculateAdaCost(tokenAmount: number): number {
+    return Math.ceil(tokenAmount / PAYMENT_CONSTANTS.TOKEN_RATE);
   }
 }
