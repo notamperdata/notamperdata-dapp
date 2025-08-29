@@ -62,7 +62,7 @@ const AccessPageComponent: React.FC = () => {
   
   // Payment state
   const [paymentDetails, setPaymentDetails] = useState<PaymentDetails>({
-    adaAmount: 10,
+    adaAmount: 2,
     tokenAmount: 10,
     email: ''
   });
@@ -75,12 +75,12 @@ const AccessPageComponent: React.FC = () => {
   const [storedTokens, setStoredTokens] = useState<StoredToken[]>([]);
   const [showToast, setShowToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  // Predefined token amounts
+  // Updated token options for 5:1 ratio
   const tokenOptions = [
-    { amount: 10, label: 'Starter', description: '10 API calls' },
-    { amount: 50, label: 'Basic', description: '50 API calls' },
-    { amount: 100, label: 'Professional', description: '100 API calls' },
-    { amount: 500, label: 'Business', description: '500 API calls' }
+    { amount: 2, label: 'Starter', description: '10 API calls' },
+    { amount: 10, label: 'Basic', description: '50 API calls' },
+    { amount: 20, label: 'Professional', description: '100 API calls' },
+    { amount: 100, label: 'Business', description: '500 API calls' }
   ];
 
   // Load stored tokens from localStorage on component mount
@@ -292,12 +292,11 @@ const AccessPageComponent: React.FC = () => {
     setAccessToken(null);
   };
 
-  // Update payment details - using dynamic imports for validation
+  // Update payment details using 5:1 token ratio
   const updatePaymentAmount = async (amount: number) => {
     try {
-      // Dynamic import for payment validation
-      const { paymentValidation } = await import('@/lib/paymentConfig');
-      const tokens = paymentValidation.calculateTokens(amount);
+      // Use 5:1 ratio (5 tokens per ADA)
+      const tokens = amount * 5;
       setPaymentDetails(prev => ({
         ...prev,
         adaAmount: amount,
@@ -309,7 +308,7 @@ const AccessPageComponent: React.FC = () => {
       setPaymentDetails(prev => ({
         ...prev,
         adaAmount: amount,
-        tokenAmount: amount // 1:1 ratio as fallback
+        tokenAmount: amount * 5 // Direct 5:1 ratio as fallback
       }));
     }
   };
@@ -351,7 +350,7 @@ const AccessPageComponent: React.FC = () => {
       // Convert ADA to Lovelace
       const lovelaceAmount = paymentUtils.adaToLovelace(paymentDetails.adaAmount);
       
-      // Create transaction metadata with network ID
+      // Create transaction metadata with network ID and updated token calculation
       const metadata = transactionMetadata.createPaymentMetadata(
         paymentDetails.adaAmount,
         paymentDetails.email || undefined,
@@ -359,7 +358,8 @@ const AccessPageComponent: React.FC = () => {
         {
           platform: 'NoTamperData',
           purpose: 'API Token Purchase',
-          network: networkName
+          network: networkName,
+          tokenRate: '5:1' // Document the new rate
         }
       );
       
@@ -369,7 +369,7 @@ const AccessPageComponent: React.FC = () => {
       const { Transaction } = await import('@meshsdk/core');
       const tx = new Transaction({ initiator: connectedWallet.wallet });
       
-      // Add payment output
+      // Add payment output to platform address
       tx.sendLovelace(platformAddress, lovelaceAmount.toString());
       
       // Add metadata if provided
@@ -401,7 +401,7 @@ const AccessPageComponent: React.FC = () => {
         body: JSON.stringify({
           txHash,
           adaAmount: paymentDetails.adaAmount,
-          tokenAmount: paymentDetails.tokenAmount,
+          tokenAmount: paymentDetails.tokenAmount, // Now uses 5:1 calculated amount
           email: paymentDetails.email || undefined,
           networkId
         })
@@ -533,10 +533,8 @@ const AccessPageComponent: React.FC = () => {
                 {/* Wallet Connection Content */}
                 {connectedWallet ? (
                   <div className="space-y-4">
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-                      <div className="flex items-center justify-center mb-2">
-                        <CheckCircle className="w-6 h-6 text-emerald-600" />
-                      </div>
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-6">
+                      <CheckCircle className="w-8 h-8 text-emerald-600 mx-auto mb-3" />
                       <p className="text-emerald-800 font-semibold text-center text-lg">Wallet Connected</p>
                       <div className="mt-3 space-y-1">
                         <p className="text-sm text-emerald-700 text-center">
@@ -693,6 +691,10 @@ const AccessPageComponent: React.FC = () => {
                         <span className="text-gray-700 font-medium">Network:</span>
                         <span className="font-bold text-gray-900">{networkName}</span>
                       </div>
+                      <div className="flex justify-between items-center mt-2">
+                        <span className="text-gray-700 font-medium">Token Rate:</span>
+                        <span className="font-bold text-emerald-600">5 tokens per ADA</span>
+                      </div>
                     </div>
                   </div>
 
@@ -729,7 +731,7 @@ const AccessPageComponent: React.FC = () => {
                       className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 font-medium"
                     />
                     <p className="text-sm text-gray-600 mt-2">
-                      You will receive <span className="font-semibold">{paymentDetails.tokenAmount} tokens</span> (1 ADA = 1 token)
+                      You will receive <span className="font-semibold">{paymentDetails.tokenAmount} tokens</span> (1 ADA = 5 tokens)
                     </p>
                   </div>
 
@@ -784,6 +786,10 @@ const AccessPageComponent: React.FC = () => {
                         <span className="font-bold text-gray-900">{paymentDetails.tokenAmount} tokens</span>
                       </div>
                       <div className="flex justify-between items-center">
+                        <span className="text-gray-700 font-medium">Rate:</span>
+                        <span className="font-bold text-emerald-600">5 tokens per ADA</span>
+                      </div>
+                      <div className="flex justify-between items-center">
                         <span className="text-gray-700 font-medium">Network:</span>
                         <span className="font-bold text-gray-900">{networkName}</span>
                       </div>
@@ -812,6 +818,7 @@ const AccessPageComponent: React.FC = () => {
                           <li>Access token will be generated after payment confirmation</li>
                           <li>Each token allows 1 hash storage on the blockchain</li>
                           <li>Tokens have no expiry</li>
+                          <li>New rate: 5 tokens per 1 ADA for better value</li>
                         </ul>
                       </div>
                     </div>
@@ -922,6 +929,10 @@ const AccessPageComponent: React.FC = () => {
                         <div className="flex justify-between items-center">
                           <span className="text-gray-600">Amount Paid:</span>
                           <span className="font-medium text-gray-900">{paymentDetails.adaAmount} ADA</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Tokens Received:</span>
+                          <span className="font-medium text-emerald-600">{paymentDetails.tokenAmount} tokens</span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-gray-600">Transaction Hash:</span>

@@ -269,7 +269,7 @@ export class PaymentProcessor {
 
     // Check amount with updated token calculation feedback
     if (!paymentValidation.isValidAmount(request.amount)) {
-      const expectedTokens = paymentValidation.calculateTokens(request.amount);
+      // const expectedTokens = paymentValidation.calculateTokens(request.amount);
       return { 
         valid: false, 
         error: `Payment amount must be between ${PAYMENT_CONSTANTS.MIN_PAYMENT_AMOUNT} and ${PAYMENT_CONSTANTS.MAX_PAYMENT_AMOUNT} ADA (${PAYMENT_CONSTANTS.MIN_PAYMENT_AMOUNT * PAYMENT_CONSTANTS.TOKEN_RATE}-${PAYMENT_CONSTANTS.MAX_PAYMENT_AMOUNT * PAYMENT_CONSTANTS.TOKEN_RATE} tokens at ${PAYMENT_CONSTANTS.TOKEN_RATE}:1 ratio)` 

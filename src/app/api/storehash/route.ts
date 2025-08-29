@@ -12,7 +12,6 @@ import {
 import { 
   loadContractConfig,
   networkUrls,
-  getNetworkTypeFromId as getContractNetworkType,
   getLucidNetworkType,
   NoTamperData_CONSTANTS
 } from '@/lib/contract';
