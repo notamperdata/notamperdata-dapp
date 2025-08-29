@@ -5,7 +5,7 @@
 ###########################################
 
 ### Store a hash on blockchain with metadata
-POST http://localhost:3000/api/storehash
+POST https://www.notamperdata.com//api/storehash
 Content-Type: application/json
 Authorization: Bearer ak_cb38508b905f950d
 

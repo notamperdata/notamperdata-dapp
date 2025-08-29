@@ -7,12 +7,12 @@ export const PAYMENT_CONSTANTS = {
   MIN_PAYMENT_AMOUNT: 1, // Minimum ADA payment
   MAX_PAYMENT_AMOUNT: 1000, // Maximum ADA payment
   METADATA_LABEL: 8434, // Metadata label for payment transactions
-  TOKEN_RATE: 1, // 1 ADA = 1 token
+  TOKEN_RATE: 5, // 1 ADA = 5 tokens (updated from 1:1 ratio)
   PLATFORM_FEE_PERCENTAGE: 0, // No additional fees
 } as const;
 
-// Platform wallet addresses by network
-// These can be overridden by environment variables if needed
+// Platform wallet addresses by network - these are now the target addresses for self-send transactions
+// Platform wallet sends to itself with metadata for cost-efficient hash storage
 export const PLATFORM_ADDRESSES = {
   Preview: process.env.NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_PREVIEW || 'addr_test1wqg448fq8u4ry04dtf3jsxqhw0avejz887ze5x0mtgpgw9gzzhue3',
   Preprod: process.env.NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_PREPROD || 'addr_test1wqg448fq8u4ry04dtf3jsxqhw0avejz887ze5x0mtgpgw9gzzhue3',
@@ -105,6 +105,7 @@ export const paymentValidation = {
 
   /**
    * Calculate token amount from ADA payment
+   * Now uses 5:1 ratio (5 tokens per 1 ADA)
    */
   calculateTokens: (adaAmount: number): number => {
     return Math.floor(adaAmount * PAYMENT_CONSTANTS.TOKEN_RATE);
@@ -157,7 +158,7 @@ export const transactionMetadata = {
       [PAYMENT_CONSTANTS.METADATA_LABEL]: {
         purpose: 'NoTamperData API Token Purchase',
         amount: amount,
-        tokens: paymentValidation.calculateTokens(amount),
+        tokens: paymentValidation.calculateTokens(amount), // Now calculates 5 tokens per ADA
         timestamp: Date.now(),
         version: '1.0',
         ...(networkId !== undefined && { networkId }),
@@ -221,8 +222,8 @@ export const paymentUtils = {
   },
 
   /**
-   * Get platform address for given network ID
-   * Now accepts network ID instead of optional NetworkType
+   * Get platform address for given network ID - these are now the self-send target addresses
+   * Platform wallet sends transactions to itself with metadata for cost efficiency
    */
   getPlatformAddress: (networkId: number): string => {
     const networkType = getNetworkTypeFromId(networkId);
@@ -272,30 +273,22 @@ export const paymentUtils = {
   },
 
   /**
-   * Get appropriate contract address based on network ID
-   * This can be extended to support different contracts per network
+   * Get blockchain explorer URL for transaction
    */
-  getContractAddress: (networkId: number): string => {
-    // You can store different contract addresses per network
-    const contractAddresses: Record<NetworkType, string> = {
-      Preview: process.env.CONTRACT_ADDRESS_PREVIEW || process.env.CONTRACT_ADDRESS || '',
-      Preprod: process.env.CONTRACT_ADDRESS_PREPROD || process.env.CONTRACT_ADDRESS || '',
-      Mainnet: process.env.CONTRACT_ADDRESS_MAINNET || process.env.CONTRACT_ADDRESS || ''
-    };
-    
-    const networkType = getNetworkTypeFromId(networkId);
-    return contractAddresses[networkType];
-  }
-};
+  getBlockchainExplorerUrl: (txHash: string, networkId: number): string => {
+    const baseUrl = networkId === 1 
+      ? 'https://cardanoscan.io' 
+      : 'https://preview.cardanoscan.io';
+    return `${baseUrl}/transaction/${txHash}`;
+  },
 
-// Export network detection utilities for use in other modules
-export const networkUtils = {
-  getNetworkTypeFromId,
-  getNetworkInfoFromId,
-  isMainnet: (networkId: number) => networkId === 1,
-  isTestnet: (networkId: number) => networkId === 0,
-  getNetworkDisplayName: (networkId: number) => {
-    const info = getNetworkInfoFromId(networkId);
-    return info.name;
+  /**
+   * Get blockchain explorer URL for address
+   */
+  getAddressExplorerUrl: (address: string, networkId: number): string => {
+    const baseUrl = networkId === 1 
+      ? 'https://cardanoscan.io' 
+      : 'https://preview.cardanoscan.io';
+    return `${baseUrl}/address/${address}`;
   }
 };

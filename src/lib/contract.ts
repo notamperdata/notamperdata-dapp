@@ -10,63 +10,18 @@ import {
   LucidEvolution
 } from '@lucid-evolution/lucid';
 
-// Import embedded Plutus data
-// import PLUTUS_DATA from '../../plutus.json';
-
-const PLUTUS_DATA = {
-  "preamble": {
-    "title": "ndigirigijohn/NoTamperData-sc",
-    "description": "Aiken contracts for project 'ndigirigijohn/NoTamperData-sc'",
-    "version": "0.0.0",
-    "plutusVersion": "v3",
-    "compiler": {
-      "name": "Aiken",
-      "version": "v1.1.15+unknown"
-    },
-    "license": "Apache-2.0"
-  },
-  "validators": [
-    {
-      "title": "NoTamperData_registry.NoTamperData_registry.spend",
-      "datum": {
-        "title": "_datum",
-        "schema": {
-          "$ref": "#/definitions/Data"
-        }
-      },
-      "redeemer": {
-        "title": "_redeemer",
-        "schema": {
-          "$ref": "#/definitions/Data"
-        }
-      },
-      "compiledCode": "585c01010029800aba2aba1aab9eaab9dab9a4888896600264653001300600198031803800cc0180092225980099b8748008c01cdd500144c8cc892898050009805180580098041baa0028a50401830060013003375400d149a26cac8009",
-      "hash": "a2492486ed656e3fb854a2c240cf16055216c38ec94d166a533c5820"
-    },
-    {
-      "title": "NoTamperData_registry.NoTamperData_registry.else",
-      "redeemer": {
-        "schema": {}
-      },
-      "compiledCode": "585c01010029800aba2aba1aab9eaab9dab9a4888896600264653001300600198031803800cc0180092225980099b8748008c01cdd500144c8cc892898050009805180580098041baa0028a50401830060013003375400d149a26cac8009",
-      "hash": "a2492486ed656e3fb854a2c240cf16055216c38ec94d166a533c5820"
-    }
-  ],
-  "definitions": {
-    "Data": {
-      "title": "Data",
-      "description": "Any Plutus data."
-    }
-  }
-};
+// Import Plutus data from generated file
+import PLUTUS_DATA from '@/lib/plutus.json';
 
 // NoTamperData constants
 export const NoTamperData_CONSTANTS = {
   METADATA_LABEL: 8434,
-  CONTRACT_UTXO_AMOUNT: BigInt(2_000_000), // 2 ADA minimum UTXO
+  CONTRACT_UTXO_AMOUNT: BigInt(2_000_000), // 2 ADA minimum UTXO - kept for reference but not used in new self-send architecture
 } as const;
 
-// Embedded deployment data - loaded at build time
+// Contract deployment data - kept for reference but not used in new self-send architecture
+// Design Decision: We've moved from contract-based to platform wallet self-send transactions
+// for cost efficiency (only tx fees vs 2+ ADA locked per transaction)
 export const DEPLOYMENT_DATA = {
   contractAddress: {
     Preview: 'addr_test1wqg448fq8u4ry04dtf3jsxqhw0avejz887ze5x0mtgpgw9gzzhue3',
@@ -83,16 +38,16 @@ export const DEPLOYMENT_DATA = {
 // Network type mapping
 export type NetworkType = 'Preview' | 'Preprod' | 'Mainnet';
 
-// Configuration interface - now with dynamic network
+// Configuration interface
 export interface ContractConfig {
   blockfrostProjectId: string;
   platformWalletMnemonic: string;
   networkId: number;
   networkType: NetworkType;
-  contractAddress: string;
+  contractAddress: string; // Kept for reference but not used - new architecture uses platform wallet self-send
 }
 
-// Interface for validator structure
+// Interface for validator structure - kept for compatibility
 interface ValidatorData {
   title: string;
   compiledCode: string;
@@ -134,8 +89,8 @@ export function getLucidNetworkType(networkType: NetworkType): Network {
 }
 
 /**
- * Load contract configuration with dynamic network support
- * Now accepts network ID as parameter instead of reading from environment
+ * Load contract configuration
+ * Note: Contract address kept for reference but actual transactions use platform wallet self-send
  */
 export function loadContractConfig(networkId?: number): ContractConfig {
   // Get network ID from parameter or try to read from environment as fallback
@@ -145,7 +100,7 @@ export function loadContractConfig(networkId?: number): ContractConfig {
   
   const networkType = getNetworkTypeFromId(detectedNetworkId);
   
-  // Get contract address for the detected network
+  // Get contract address for reference (not used in actual transactions)
   const contractAddress = process.env.CONTRACT_ADDRESS || 
     process.env[`CONTRACT_ADDRESS_${networkType.toUpperCase()}`] ||
     DEPLOYMENT_DATA.contractAddress[networkType];
@@ -155,7 +110,7 @@ export function loadContractConfig(networkId?: number): ContractConfig {
     platformWalletMnemonic: process.env.PLATFORM_WALLET_MNEMONIC || '',
     networkId: detectedNetworkId,
     networkType,
-    contractAddress
+    contractAddress // Kept for reference but not used in new self-send architecture
   };
 
   // Validate required environment variables
@@ -166,30 +121,30 @@ export function loadContractConfig(networkId?: number): ContractConfig {
   if (!config.platformWalletMnemonic) {
     throw new Error('PLATFORM_WALLET_MNEMONIC environment variable is required');
   }
-  
-  if (!config.contractAddress) {
-    throw new Error(`No contract address found for network: ${networkType}`);
-  }
 
-  console.log('Contract config loaded:', {
+  console.log('Contract config loaded (self-send architecture):', {
     networkId: config.networkId,
     networkType: config.networkType,
-    contractAddress: config.contractAddress.substring(0, 20) + '...',
+    contractAddress: config.contractAddress ? config.contractAddress.substring(0, 20) + '...' : 'Not set',
     hasBlockfrostId: !!config.blockfrostProjectId,
-    hasWalletMnemonic: !!config.platformWalletMnemonic
+    hasWalletMnemonic: !!config.platformWalletMnemonic,
+    note: 'Contract address kept for reference - actual transactions use platform wallet self-send'
   });
 
   return config;
 }
 
 /**
- * Load validator from embedded data ONLY - no file system access
+ * Load validator from embedded data
+ * Note: Contract validator exists but is not actually used in the new self-send architecture.
+ * We've moved to platform wallet self-send transactions for cost efficiency while maintaining
+ * the same immutable proof capabilities through transaction metadata.
  */
 export function loadNoTamperDataValidator(_networkType?: NetworkType): { 
   compiledCode: string; 
   hash: string 
 } {
-  console.log('📦 Loading validator from embedded data');
+  console.log('📦 Loading validator from embedded data (not used in current self-send architecture)');
   
   const spendValidator = PLUTUS_DATA.validators.find(
     (v: ValidatorData) => v.title === 'NoTamperData_registry.NoTamperData_registry.spend'
@@ -203,7 +158,7 @@ export function loadNoTamperDataValidator(_networkType?: NetworkType): {
     );
   }
   
-  console.log('✅ Validator loaded from embedded data successfully');
+  console.log('✅ Validator loaded from embedded data (reference only - not actually used)');
   console.log('🔑 Validator hash:', spendValidator.hash);
   
   return {
@@ -213,7 +168,7 @@ export function loadNoTamperDataValidator(_networkType?: NetworkType): {
 }
 
 /**
- * Create validator from compiled code
+ * Create validator from compiled code - kept for compatibility but not used in new architecture
  */
 export function createValidator(compiledCode: string): SpendingValidator {
   return {
@@ -224,7 +179,7 @@ export function createValidator(compiledCode: string): SpendingValidator {
 
 /**
  * Initialize Lucid with dynamic network configuration
- * Now accepts network ID instead of relying on environment variables
+ * Simplified for self-send architecture - no contract interaction needed
  */
 export async function initializeLucid(
   networkId: number,
@@ -235,132 +190,31 @@ export async function initializeLucid(
   const config = networkId !== undefined 
     ? loadContractConfig(networkId)
     : loadContractConfig();
-
-  // Allow overrides for project ID and mnemonic
-  const projectId = blockfrostProjectId || config.blockfrostProjectId;
-  const mnemonic = platformWalletMnemonic || config.platformWalletMnemonic;
+    
+  const finalBlockfrostId = blockfrostProjectId || config.blockfrostProjectId;
+  const finalMnemonic = platformWalletMnemonic || config.platformWalletMnemonic;
   
-  const network = getLucidNetworkType(config.networkType);
-  const blockfrostUrl = networkUrls[config.networkType];
-
-  console.log('🔧 Initializing Lucid with:', {
-    network,
+  if (!finalBlockfrostId || !finalMnemonic) {
+    throw new Error('Blockfrost project ID and wallet mnemonic are required');
+  }
+  
+  console.log('🚀 Initializing Lucid for self-send architecture:', {
+    network: config.networkType,
     networkId: config.networkId,
-    networkType: config.networkType,
-    blockfrostUrl
+    hasBlockfrost: !!finalBlockfrostId,
+    hasWallet: !!finalMnemonic
   });
-
+  
+  // Initialize Lucid with Blockfrost provider
   const lucid = await Lucid(
-    new Blockfrost(blockfrostUrl, projectId),
-    network
+    new Blockfrost(networkUrls[config.networkType], finalBlockfrostId),
+    getLucidNetworkType(config.networkType)
   );
-
-  // Select wallet from mnemonic if provided
-  if (mnemonic) {
-    lucid.selectWallet.fromSeed(mnemonic);
-    console.log('✅ Lucid initialized with platform wallet');
-  } else {
-    console.log('✅ Lucid initialized without wallet selection');
-  }
-
+  
+  // Set wallet from mnemonic
+  lucid.selectWallet.fromSeed(finalMnemonic);
+  
+  console.log('✅ Lucid initialized successfully for self-send transactions');
+  
   return lucid;
 }
-
-/**
- * Initialize Lucid with browser wallet
- * For use in client-side components
- */
-export async function initializeLucidWithBrowserWallet(
-  walletApi: any,
-  networkId: number
-): Promise<LucidEvolution> {
-  const networkType = getNetworkTypeFromId(networkId);
-  const network = getLucidNetworkType(networkType);
-  const blockfrostUrl = networkUrls[networkType];
-  
-  // Get Blockfrost project ID from environment
-  const blockfrostProjectId = process.env.NEXT_PUBLIC_BLOCKFROST_PROJECT_ID || 
-                              process.env.BLOCKFROST_PROJECT_ID;
-  
-  if (!blockfrostProjectId) {
-    throw new Error('Blockfrost project ID not found in environment variables');
-  }
-
-  console.log('🔧 Initializing Lucid with browser wallet:', {
-    network,
-    networkId,
-    networkType
-  });
-
-  const lucid = await Lucid(
-    new Blockfrost(blockfrostUrl, blockfrostProjectId),
-    network
-  );
-
-  // Select the browser wallet
-  lucid.selectWallet.fromAPI(walletApi);
-  
-  console.log('✅ Lucid initialized with browser wallet');
-  return lucid;
-}
-
-/**
- * Get contract address for a specific network
- */
-export function getContractAddress(networkId: number): string {
-  const networkType = getNetworkTypeFromId(networkId);
-  
-  // Check environment variables first
-  const envAddress = process.env.CONTRACT_ADDRESS || 
-                    process.env[`CONTRACT_ADDRESS_${networkType.toUpperCase()}`];
-  
-  if (envAddress) {
-    return envAddress;
-  }
-  
-  // Fallback to embedded deployment data
-  return DEPLOYMENT_DATA.contractAddress[networkType];
-}
-
-/**
- * Get validator hash for a specific network
- */
-export function getValidatorHash(networkId: number): string {
-  const networkType = getNetworkTypeFromId(networkId);
-  
-  // Check if we have network-specific validator hashes
-  const validatorHash = DEPLOYMENT_DATA.validatorHash[networkType];
-  
-  if (!validatorHash) {
-    // If no network-specific hash, try to load from validator
-    const validator = loadNoTamperDataValidator(networkType);
-    return validator.hash;
-  }
-  
-  return validatorHash;
-}
-
-/**
- * Utility to check if an address belongs to a specific network
- */
-export function isAddressForNetwork(address: string, networkId: number): boolean {
-  const isMainnet = networkId === 1;
-  const isMainnetAddress = address.startsWith('addr1');
-  const isTestnetAddress = address.startsWith('addr_test1');
-  
-  return (isMainnet && isMainnetAddress) || (!isMainnet && isTestnetAddress);
-}
-
-/**
- * Export all network utilities
- */
-export const networkUtils = {
-  getNetworkTypeFromId,
-  getLucidNetworkType,
-  isMainnet: (networkId: number) => networkId === 1,
-  isTestnet: (networkId: number) => networkId === 0,
-  getBlockfrostUrl: (networkId: number) => {
-    const networkType = getNetworkTypeFromId(networkId);
-    return networkUrls[networkType];
-  }
-};
