@@ -1,22 +1,39 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 // src/app/api/storehash/route.ts
+console.log('📦 Starting module imports...');
+
 import { NextRequest, NextResponse } from 'next/server';
+console.log('✅ Next.js imports loaded');
+
 import { AccessTokenManager } from '@/lib/AccessTokenManager';
+console.log('✅ AccessTokenManager imported');
+
 import dbConnect from '@/lib/mongodb';
+console.log('✅ MongoDB connection imported');
+
 import { 
   Lucid, 
   Blockfrost, 
   LucidEvolution
 } from '@lucid-evolution/lucid';
+console.log('✅ Lucid imports loaded');
+
 import { 
   loadContractConfig,
   networkUrls,
   getLucidNetworkType,
   NoTamperData_CONSTANTS
 } from '@/lib/contract';
-import { paymentUtils } from '@/lib/paymentConfig';
+console.log('✅ Contract config imported');
 
+import { paymentUtils } from '@/lib/paymentConfig';
+console.log('✅ Payment utils imported');
+
+// REMOVED: Global BigInt prototype modification
+// if (typeof BigInt !== 'undefined') {
+//   (BigInt.prototype as any).toJSON = function() { return this.toString(); };
+// }
 
 // Safe JSON serialization function for BigInt handling
 const safeBigIntStringify = (obj: any): string => {
@@ -40,6 +57,8 @@ console.log('🔧 Environment variables check:', {
   hasWallet: !!ENV_VALIDATION.PLATFORM_WALLET_MNEMONIC,
   hasMongoDB: !!ENV_VALIDATION.MONGODB_URI
 });
+
+console.log('🎯 Module initialization complete - POST handler ready');
 
 interface StoreHashRequest {
   hash: string;
@@ -207,12 +226,74 @@ async function storeHashOnBlockchain(
  * Store hash on blockchain using platform wallet self-send architecture
  * Updated: More cost-efficient approach with same immutable proof capabilities
  */
-export async function POST(request: NextRequest): Promise<NextResponse<StoreHashResponse>> {
+/**
+ * Handle both GET and POST requests for hash storage
+ * This allows the API to work regardless of HTTP method issues from Google Apps Script
+ */
+async function handleHashStorage(request: NextRequest): Promise<NextResponse<StoreHashResponse>> {
+  const startTime = Date.now();
+  console.log('🚀 === HASH STORAGE FUNCTION CALLED ===');
+  console.log('🕐 Request received at:', new Date().toISOString());
+  console.log('🔧 HTTP Method:', request.method);
+  
   try {
+    let body: StoreHashRequest;
+    
+    // Handle both GET and POST requests
+    if (request.method === 'GET') {
+      console.log('📥 Processing GET request - extracting from URL params');
+      const { searchParams } = new URL(request.url);
+      
+      // Extract hash storage parameters from URL
+      const hash = searchParams.get('hash');
+      const formId = searchParams.get('formId');
+      const responseId = searchParams.get('responseId');
+      const networkId = parseInt(searchParams.get('networkId') || '0');
+      
+      if (!hash) {
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: 'Hash parameter is required for GET request' 
+          },
+          { status: 400 }
+        );
+      }
+      
+      // Construct body from URL parameters
+      body = {
+        hash,
+        formId: formId || undefined,
+        responseId: responseId || undefined,
+        networkId,
+        metadata: {
+          formId,
+          responseId,
+          method: 'GET',
+          timestamp: Date.now()
+        }
+      };
+      
+      console.log('✅ GET request parameters extracted:', {
+        hasHash: !!body.hash,
+        hasFormId: !!body.formId,
+        hasResponseId: !!body.responseId,
+        networkId: body.networkId
+      });
+      
+    } else {
+      console.log('📥 Processing POST request - parsing JSON body');
+      // Handle POST request normally
+      body = await request.json();
+    }
+    
     console.log('🔐 Store Hash - Processing request with self-send blockchain integration');
-
-    // Parse request body
-    const body: StoreHashRequest = await request.json();
+    console.log('📊 Request details:', {
+      method: request.method,
+      hasHash: !!body.hash,
+      hashLength: body.hash?.length,
+      networkId: body.networkId
+    });
     
     // Extract access token from Authorization header
     const accessToken = extractAccessToken(request);
@@ -387,14 +468,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<StoreHash
     });
 
   } catch (error) {
-    console.error('💥 Store hash error:', error);
+    const elapsedTime = Date.now() - startTime;
+    console.error('💥 Store hash error after', `${elapsedTime}ms:`, error);
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     
     const errorResponse = { 
       success: false,
       error: 'Internal server error while storing hash', 
-      message: errorMessage
+      message: errorMessage,
+      elapsedTime: `${elapsedTime}ms`
     };
     
     // Use safe BigInt serialization for error response too
@@ -408,14 +491,34 @@ export async function POST(request: NextRequest): Promise<NextResponse<StoreHash
 }
 
 /**
+ * POST /api/storehash
+ * Store hash on blockchain using platform wallet self-send architecture
+ */
+export async function POST(request: NextRequest): Promise<NextResponse<StoreHashResponse>> {
+  return handleHashStorage(request);
+}
+
+/**
  * GET /api/storehash
  * 
- * Returns information about the store hash endpoint
+ * Handle GET requests for hash storage (fallback for Google Apps Script issues)
+ * Also returns API information when no hash parameter is provided
  */
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const { searchParams } = new URL(request.url);
+  const hash = searchParams.get('hash');
+  
+  // If hash parameter is provided, treat as storage request
+  if (hash) {
+    console.log('🔄 GET request with hash parameter - treating as storage request');
+    return handleHashStorage(request);
+  }
+  
+  // Otherwise return API information
+  console.log('ℹ️ GET request without hash - returning API information');
   const infoData = {
     endpoint: 'storehash',
-    method: 'POST',
+    method: 'POST (GET also supported with URL parameters)',
     description: 'Store hash on Cardano blockchain using platform wallet self-send architecture',
     architecture: 'Platform wallet self-send with metadata for cost efficiency',
     authentication: {
@@ -424,6 +527,7 @@ export async function GET(): Promise<NextResponse> {
     },
     requiredFields: ['hash'],
     optionalFields: ['metadata', 'formId', 'responseId', 'networkId'],
+    getRequestFormat: '/api/storehash?hash={hash}&formId={formId}&responseId={responseId}&networkId={networkId}',
     networkIds: {
       0: 'testnet',
       1: 'mainnet'
