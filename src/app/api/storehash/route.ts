@@ -1,41 +1,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-// src/app/api/storehash/route.ts
-console.log('📦 Starting module imports...');
-
 import { NextRequest, NextResponse } from 'next/server';
-console.log('✅ Next.js imports loaded');
-
 import { AccessTokenManager } from '@/lib/AccessTokenManager';
-console.log('✅ AccessTokenManager imported');
-
 import dbConnect from '@/lib/mongodb';
-console.log('✅ MongoDB connection imported');
-
 import { 
   Lucid, 
   Blockfrost, 
   LucidEvolution
 } from '@lucid-evolution/lucid';
-console.log('✅ Lucid imports loaded');
-
 import { 
   loadContractConfig,
   networkUrls,
   getLucidNetworkType,
   NoTamperData_CONSTANTS
 } from '@/lib/contract';
-console.log('✅ Contract config imported');
-
 import { paymentUtils } from '@/lib/paymentConfig';
-console.log('✅ Payment utils imported');
 
-// REMOVED: Global BigInt prototype modification
-// if (typeof BigInt !== 'undefined') {
-//   (BigInt.prototype as any).toJSON = function() { return this.toString(); };
-// }
-
-// Safe JSON serialization function for BigInt handling
 const safeBigIntStringify = (obj: any): string => {
   return JSON.stringify(obj, (key, value) => {
     if (typeof value === 'bigint') {
@@ -45,20 +25,6 @@ const safeBigIntStringify = (obj: any): string => {
   });
 };
 
-// Environment validation at startup
-const ENV_VALIDATION = {
-  BLOCKFROST_PROJECT_ID: process.env.BLOCKFROST_PROJECT_ID,
-  PLATFORM_WALLET_MNEMONIC: process.env.PLATFORM_WALLET_MNEMONIC,
-  MONGODB_URI: process.env.MONGODB_URI
-};
-
-console.log('🔧 Environment variables check:', {
-  hasBlockfrost: !!ENV_VALIDATION.BLOCKFROST_PROJECT_ID,
-  hasWallet: !!ENV_VALIDATION.PLATFORM_WALLET_MNEMONIC,
-  hasMongoDB: !!ENV_VALIDATION.MONGODB_URI
-});
-
-console.log('🎯 Module initialization complete - POST handler ready');
 
 interface StoreHashRequest {
   hash: string;
@@ -88,15 +54,12 @@ interface StoreHashResponse {
       hash: string;
       txHash: string;
     };
-    platformAddress: string; // Changed from contractAddress to reflect new architecture
+    platformAddress: string;
   };
   error?: string;
   message?: string;
 }
 
-/**
- * Extract access token from Authorization header (Bearer token)
- */
 function extractAccessToken(request: NextRequest): string | null {
   const authHeader = request.headers.get('authorization');
   if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -106,23 +69,14 @@ function extractAccessToken(request: NextRequest): string | null {
   return null;
 }
 
-/**
- * Validate access token format
- */
 function isValidAccessTokenFormat(accessToken: string): boolean {
   return /^ak_[a-zA-Z0-9]{16}$/.test(accessToken);
 }
 
-/**
- * Get network type from network ID
- */
 function getNetworkTypeFromId(networkId: number): string {
   return networkId === 1 ? 'mainnet' : 'testnet';
 }
 
-/**
- * Get blockchain explorer URL for transaction
- */
 function getBlockchainExplorerUrl(txHash: string, networkId: number): string {
   if (networkId === 1) {
     return `https://cardanoscan.io/transaction/${txHash}`;
@@ -131,19 +85,8 @@ function getBlockchainExplorerUrl(txHash: string, networkId: number): string {
   }
 }
 
-/**
- * Initialize Lucid for platform wallet self-send transactions
- * Updated: No longer needs contract validator loading
- */
 async function initLucid(networkId: number): Promise<LucidEvolution> {
   const config = loadContractConfig(networkId);
-  
-  console.log('🔧 Initializing Lucid for self-send architecture:', {
-    hasBlockfrostId: !!config.blockfrostProjectId,
-    hasWalletMnemonic: !!config.platformWalletMnemonic,
-    networkType: config.networkType
-  });
-
   const network = getLucidNetworkType(config.networkType);
   const blockfrostUrl = networkUrls[config.networkType];
 
@@ -152,31 +95,18 @@ async function initLucid(networkId: number): Promise<LucidEvolution> {
     network
   );
 
-  // Select platform wallet from mnemonic
   lucid.selectWallet.fromSeed(config.platformWalletMnemonic);
-
   return lucid;
 }
 
-/**
- * Store hash on blockchain using platform wallet self-send with metadata
- * Updated: Uses platform address instead of contract address for cost efficiency
- */
 async function storeHashOnBlockchain(
   hash: string, 
   metadata: { formId?: string; responseId?: string; networkId: number }
 ): Promise<string> {
   try {
-    console.log('🚀 Storing hash via platform wallet self-send:', hash);
-    
-    // Initialize Lucid with network ID
     const lucid = await initLucid(metadata.networkId);
-    
-    // Get platform address for self-send transaction (not contract address)
     const platformAddress = paymentUtils.getPlatformAddress(metadata.networkId);
-    console.log('📋 Using platform address for self-send:', platformAddress);
     
-    // Create transaction metadata according to specification (label 8434)
     const txMetadata = {
       hash: hash,
       form_id: metadata.formId || 'unknown',
@@ -184,67 +114,38 @@ async function storeHashOnBlockchain(
       timestamp: Date.now(),
       network_id: metadata.networkId,
       version: "1.0",
-      architecture: "self-send" // Indicates new cost-efficient architecture
+      architecture: "self-send"
     };
     
-    console.log('📝 Transaction metadata:', txMetadata);
-    
-    // Create self-send transaction with metadata
-    // Platform wallet sends to itself to maintain capital efficiency while storing metadata
     const tx = lucid
       .newTx()
       .pay.ToAddress(
-        platformAddress, // Self-send to platform address 
-        { lovelace: BigInt(2_000_000) } // Minimum UTxO amount, stays in platform wallet
+        platformAddress,
+        { lovelace: BigInt(2_000_000) }
       )
       .attachMetadata(NoTamperData_CONSTANTS.METADATA_LABEL, txMetadata);
     
-    console.log('⚙️ Building self-send transaction...');
-    
-    // Complete and sign transaction
     const completedTx = await tx.complete();
     const signedTx = await completedTx.sign.withWallet().complete();
-    
-    console.log('📤 Submitting self-send transaction...');
-    
-    // Submit transaction
     const txHash = await signedTx.submit();
-    
-    console.log('✅ Hash stored via self-send transaction! TX:', txHash);
     
     return txHash;
     
   } catch (error) {
-    console.error('💥 Error storing hash via self-send:', error);
+    console.error('Error storing hash via self-send:', error);
     throw error;
   }
 }
 
-/**
- * POST /api/storehash
- * 
- * Store hash on blockchain using platform wallet self-send architecture
- * Updated: More cost-efficient approach with same immutable proof capabilities
- */
-/**
- * Handle both GET and POST requests for hash storage
- * This allows the API to work regardless of HTTP method issues from Google Apps Script
- */
 async function handleHashStorage(request: NextRequest): Promise<NextResponse<StoreHashResponse>> {
   const startTime = Date.now();
-  console.log('🚀 === HASH STORAGE FUNCTION CALLED ===');
-  console.log('🕐 Request received at:', new Date().toISOString());
-  console.log('🔧 HTTP Method:', request.method);
   
   try {
     let body: StoreHashRequest;
     
-    // Handle both GET and POST requests
     if (request.method === 'GET') {
-      console.log('📥 Processing GET request - extracting from URL params');
       const { searchParams } = new URL(request.url);
       
-      // Extract hash storage parameters from URL
       const hash = searchParams.get('hash');
       const formId = searchParams.get('formId');
       const responseId = searchParams.get('responseId');
@@ -260,7 +161,6 @@ async function handleHashStorage(request: NextRequest): Promise<NextResponse<Sto
         );
       }
       
-      // Construct body from URL parameters
       body = {
         hash,
         formId: formId || undefined,
@@ -274,33 +174,13 @@ async function handleHashStorage(request: NextRequest): Promise<NextResponse<Sto
         }
       };
       
-      console.log('✅ GET request parameters extracted:', {
-        hasHash: !!body.hash,
-        hasFormId: !!body.formId,
-        hasResponseId: !!body.responseId,
-        networkId: body.networkId
-      });
-      
     } else {
-      console.log('📥 Processing POST request - parsing JSON body');
-      // Handle POST request normally
       body = await request.json();
     }
     
-    console.log('🔐 Store Hash - Processing request with self-send blockchain integration');
-    console.log('📊 Request details:', {
-      method: request.method,
-      hasHash: !!body.hash,
-      hashLength: body.hash?.length,
-      networkId: body.networkId
-    });
-    
-    // Extract access token from Authorization header
     const accessToken = extractAccessToken(request);
     
-    // Validate access token presence
     if (!accessToken) {
-      console.error('❌ No access token provided');
       return NextResponse.json(
         { 
           success: false, 
@@ -310,9 +190,7 @@ async function handleHashStorage(request: NextRequest): Promise<NextResponse<Sto
       );
     }
 
-    // Validate access token format
     if (!isValidAccessTokenFormat(accessToken)) {
-      console.error('❌ Invalid access token format');
       return NextResponse.json(
         { 
           success: false, 
@@ -322,9 +200,7 @@ async function handleHashStorage(request: NextRequest): Promise<NextResponse<Sto
       );
     }
 
-    // Validate required fields
     if (!body.hash) {
-      console.error('❌ Hash missing from request');
       return NextResponse.json(
         { 
           success: false, 
@@ -334,9 +210,7 @@ async function handleHashStorage(request: NextRequest): Promise<NextResponse<Sto
       );
     }
 
-    // Validate hash format (64 character hex string)
     if (!/^[a-fA-F0-9]{64}$/.test(body.hash)) {
-      console.error('❌ Invalid hash format');
       return NextResponse.json(
         { 
           success: false, 
@@ -346,11 +220,8 @@ async function handleHashStorage(request: NextRequest): Promise<NextResponse<Sto
       );
     }
 
-    // Get network ID from request (default to testnet)
     const networkId = body.networkId ?? 0;
-    console.log('📡 Processing request for network ID:', networkId);
     
-    // Validate network ID
     if (networkId !== 0 && networkId !== 1) {
       return NextResponse.json(
         { 
@@ -361,16 +232,11 @@ async function handleHashStorage(request: NextRequest): Promise<NextResponse<Sto
       );
     }
     
-    // Connect to database
     await dbConnect();
     
-    console.log(`🔍 Validating access token: ${accessToken.substring(0, 8)}...`);
-    
-    // Validate access token without consuming tokens
     const validationResult = await AccessTokenManager.validateAndConsumeToken(accessToken, 0);
     
     if (!validationResult.valid) {
-      console.error(`❌ Access token validation failed: ${validationResult.error}`);
       return NextResponse.json(
         { 
           success: false, 
@@ -380,11 +246,9 @@ async function handleHashStorage(request: NextRequest): Promise<NextResponse<Sto
       );
     }
     
-    // Get access token status to check remaining tokens
     const statusResult = await AccessTokenManager.getAccessTokenStatus(accessToken);
     
     if (!statusResult.success || !statusResult.data) {
-      console.error('❌ Failed to retrieve access token status');
       return NextResponse.json(
         { 
           success: false, 
@@ -395,7 +259,6 @@ async function handleHashStorage(request: NextRequest): Promise<NextResponse<Sto
     }
     
     if (statusResult.data.remainingTokens <= 0) {
-      console.error('❌ Insufficient tokens');
       return NextResponse.json(
         { 
           success: false, 
@@ -405,36 +268,21 @@ async function handleHashStorage(request: NextRequest): Promise<NextResponse<Sto
       );
     }
     
-    console.log(`✅ Access token valid. Remaining tokens: ${statusResult.data.remainingTokens}`);
-    
-    // Store hash on blockchain using self-send architecture
-    console.log('🔗 Storing hash via platform wallet self-send...');
     const txHash = await storeHashOnBlockchain(body.hash, {
       formId: body.formId,
       responseId: body.responseId,
       networkId
     });
     
-    console.log(`✅ Hash stored via self-send. Transaction: ${txHash}`);
-    
-    // Consume token after successful blockchain storage
     const consumeResult = await AccessTokenManager.validateAndConsumeToken(accessToken, 1);
     
     if (!consumeResult.valid) {
-      console.warn('⚠️ Failed to consume token after blockchain storage:', consumeResult.error);
-      // Transaction was successful, but token consumption failed
-      // This is logged but doesn't fail the request since the hash is already stored
-    } else {
-      console.log(`✅ Token consumed. Remaining: ${consumeResult.remainingTokens}`);
+      console.warn('Failed to consume token after blockchain storage:', consumeResult.error);
     }
     
-    // Get network name for response
     const networkType = getNetworkTypeFromId(networkId);
-    
-    // Get platform address for response
     const platformAddress = paymentUtils.getPlatformAddress(networkId);
     
-    // Prepare response data with potential BigInt values
     const responseData = {
       success: true,
       data: {
@@ -455,11 +303,10 @@ async function handleHashStorage(request: NextRequest): Promise<NextResponse<Sto
           hash: body.hash,
           txHash: txHash
         },
-        platformAddress // Return platform address instead of contract address
+        platformAddress
       }
     };
     
-    // Use safe BigInt serialization for response only
     return new NextResponse(safeBigIntStringify(responseData), {
       status: 200,
       headers: {
@@ -468,9 +315,9 @@ async function handleHashStorage(request: NextRequest): Promise<NextResponse<Sto
     });
 
   } catch (error) {
-    const elapsedTime = Date.now() - startTime;
-    console.error('💥 Store hash error after', `${elapsedTime}ms:`, error);
+    console.error('Store hash error:', error);
     
+    const elapsedTime = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     
     const errorResponse = { 
@@ -480,7 +327,6 @@ async function handleHashStorage(request: NextRequest): Promise<NextResponse<Sto
       elapsedTime: `${elapsedTime}ms`
     };
     
-    // Use safe BigInt serialization for error response too
     return new NextResponse(safeBigIntStringify(errorResponse), {
       status: 500,
       headers: {
@@ -490,32 +336,18 @@ async function handleHashStorage(request: NextRequest): Promise<NextResponse<Sto
   }
 }
 
-/**
- * POST /api/storehash
- * Store hash on blockchain using platform wallet self-send architecture
- */
 export async function POST(request: NextRequest): Promise<NextResponse<StoreHashResponse>> {
   return handleHashStorage(request);
 }
 
-/**
- * GET /api/storehash
- * 
- * Handle GET requests for hash storage (fallback for Google Apps Script issues)
- * Also returns API information when no hash parameter is provided
- */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = new URL(request.url);
   const hash = searchParams.get('hash');
   
-  // If hash parameter is provided, treat as storage request
   if (hash) {
-    console.log('🔄 GET request with hash parameter - treating as storage request');
     return handleHashStorage(request);
   }
   
-  // Otherwise return API information
-  console.log('ℹ️ GET request without hash - returning API information');
   const infoData = {
     endpoint: 'storehash',
     method: 'POST (GET also supported with URL parameters)',
@@ -555,7 +387,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
   };
   
-  // Use safe BigInt serialization for GET response too
   return new NextResponse(safeBigIntStringify(infoData), {
     headers: {
       'Content-Type': 'application/json',
@@ -563,11 +394,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   });
 }
 
-/**
- * OPTIONS /api/storehash
- * 
- * CORS support for store hash endpoint
- */
 export async function OPTIONS(): Promise<NextResponse> {
   return new NextResponse(null, {
     status: 200,

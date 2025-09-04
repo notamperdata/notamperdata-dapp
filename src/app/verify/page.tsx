@@ -4,7 +4,6 @@ import { useState, useEffect, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Shield, FileText, Upload, Hash, Download, CheckCircle, XCircle, Clock, Lock } from 'lucide-react';
 
-// Define types for our verification API response
 interface VerificationResult {
   verified: boolean;
   message: string;
@@ -25,7 +24,7 @@ interface VerificationResult {
   };
 }
 
-type VerificationMethod = 'hash' | 'csv';
+type VerificationMethod = 'csv' | 'hash';
 
 interface CsvRow {
   [key: string]: string;
@@ -46,7 +45,6 @@ interface StandardizedBatchData {
   responses: StandardizedResponse[];
 }
 
-// Loading Spinner Component
 const LoadingSpinner = ({ className = "h-4 w-4" }: { className?: string }) => (
   <svg className={`animate-spin ${className}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -57,7 +55,7 @@ const LoadingSpinner = ({ className = "h-4 w-4" }: { className?: string }) => (
 function VerifyContent() {
   const params = useParams();
   const searchParams = useSearchParams();
-  const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>('hash');
+  const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>('csv');
   const [hash, setHash] = useState<string>('');
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [result, setResult] = useState<VerificationResult | null>(null);
@@ -66,7 +64,6 @@ function VerifyContent() {
   const [generatedHash, setGeneratedHash] = useState<string | null>(null);
   const [processingStep, setProcessingStep] = useState<string>('');
 
-  // Check for hash in URL on component mount
   useEffect(() => {
     if (params?.hash && typeof params.hash === 'string') {
       setHash(params.hash);
@@ -78,7 +75,6 @@ function VerifyContent() {
     }
   }, [params, searchParams]);
 
-  // Reset states when switching verification methods
   useEffect(() => {
     if (verificationMethod === 'hash') {
       setCsvFile(null);
@@ -91,9 +87,6 @@ function VerifyContent() {
     setProcessingStep('');
   }, [verificationMethod]);
 
-  /**
-   * Creates SHA-256 hash from string input
-   */
   const createSha256Hash = async (input: string): Promise<string> => {
     const encoder = new TextEncoder();
     const data = encoder.encode(input);
@@ -105,12 +98,7 @@ function VerifyContent() {
     return hashHex;
   };
 
-  /**
-   * Creates deterministic hash matching the add-on logic
-   */
   const createDeterministicHash = async (data: unknown): Promise<string> => {
-    console.log("\n=== HASHING ===");
-    
     const replacer = (key: string, value: unknown): unknown => {
       if (Array.isArray(value)) {
         if (value.every(item => typeof item !== 'object' || item === null)) {
@@ -124,7 +112,7 @@ function VerifyContent() {
             try {
               return JSON.parse(item);
             } catch (e) {
-              console.log("Parse error in hashing:", e);
+              console.error("Parse error in hashing:", e);
               return item;
             }
           });
@@ -141,19 +129,11 @@ function VerifyContent() {
     };
     
     const jsonString = JSON.stringify(data, replacer);
-    console.log("JSON string for hashing:", jsonString.substring(0, 200) + "...");
-    
     const hash = await createSha256Hash(jsonString);
-    console.log("Generated hash:", hash);
     return hash;
   };
 
-  /**
-   * Parse CSV string to objects
-   */
   const parseCsv = (csvContent: string): CsvRow[] => {
-    console.log("=== PARSING CSV ===");
-    
     const lines = csvContent.trim().split('\n');
     if (lines.length < 2) {
       throw new Error('CSV must have at least header and one data row');
@@ -162,8 +142,6 @@ function VerifyContent() {
     const headers = lines[0].split(',').map(header => 
       header.replace(/^"(.*)"$/, '$1').trim()
     );
-    
-    console.log("Headers:", headers);
     
     const rows: CsvRow[] = [];
     for (let i = 1; i < lines.length; i++) {
@@ -177,21 +155,13 @@ function VerifyContent() {
       });
       
       rows.push(row);
-      console.log(`Row ${i}:`, row);
     }
     
     return rows;
   };
 
-  /**
-   * Converts CSV data to standardized format matching the add-on's structure
-   */
   const convertCsvToStandardizedFormat = (csvData: CsvRow[]): StandardizedBatchData => {
-    console.log("=== CSV STANDARDIZATION ===");
-    
     const responses: StandardizedResponse[] = csvData.map((row, index) => {
-      console.log(`Processing CSV row ${index}`);
-      
       const fieldNames = Object.keys(row)
         .filter(fieldName => {
           const lowerField = fieldName.toLowerCase();
@@ -201,15 +171,11 @@ function VerifyContent() {
         })
         .sort();
       
-      console.log("Sorted field names (excluding timestamps):", fieldNames);
-      
       const items = fieldNames.map((fieldName) => {
-        const standardizedItem = {
+        return {
           title: fieldName,
           response: row[fieldName] !== null && row[fieldName] !== undefined ? String(row[fieldName]) : ""
         };
-        console.log(`  Item: ${fieldName} -> ${standardizedItem.response}`);
-        return standardizedItem;
       });
 
       return {
@@ -218,18 +184,12 @@ function VerifyContent() {
       };
     });
 
-    const standardizedBatch: StandardizedBatchData = {
+    return {
       responseCount: responses.length,
       responses: responses
     };
-    
-    console.log("\n=== CSV STANDARDIZED OUTPUT (excluding timestamps) ===");
-    console.log(JSON.stringify(standardizedBatch, null, 2));
-    
-    return standardizedBatch;
   };
 
-  // Handle file upload
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && file.type === 'text/csv') {
@@ -269,22 +229,17 @@ function VerifyContent() {
         });
         
         setProcessingStep('Parsing CSV data...');
-        console.log("📊 TESTING CSV STANDARDIZATION");
-        
         const csvData = parseCsv(csvContent);
         
         setProcessingStep('Standardizing data format...');
         const standardized = convertCsvToStandardizedFormat(csvData);
         
-        console.log("Standardized data from CSV:", standardized);
-        
         setProcessingStep('Generating hash from standardized data...');
         hashToVerify = await createDeterministicHash(standardized);
-        console.log("Generated hash from standardized CSV:", hashToVerify);
         setGeneratedHash(hashToVerify);
       } catch (err) {
         setError('Failed to process CSV file: ' + (err instanceof Error ? err.message : 'Unknown error'));
-        console.error(err);
+        console.error('CSV processing error:', err);
         return;
       }
     } else {
@@ -296,7 +251,6 @@ function VerifyContent() {
     setProcessingStep('Verifying hash on blockchain...');
     
     try {
-      console.log("Verifying hash:", hashToVerify);
       const response = await fetch('/api/verify', {
         method: 'POST',
         headers: {
@@ -320,13 +274,13 @@ function VerifyContent() {
         setError('An unknown error occurred');
       }
       setResult(null);
+      console.error('Verification error:', err);
     } finally {
       setLoading(false);
       setProcessingStep('');
     }
   };
 
-  // Generate PDF Report
   const generatePdfReport = () => {
     if (!result) return;
 
@@ -511,7 +465,6 @@ function VerifyContent() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       <div className="container mx-auto px-4 py-8">
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-[#4285F4] rounded-full mb-4">
             <Shield className="w-8 h-8 text-white" />
@@ -524,10 +477,8 @@ function VerifyContent() {
           </p>
         </div>
 
-        {/* Main Content */}
         <div className="max-w-2xl mx-auto">
           <div className="bg-white shadow-xl rounded-2xl border border-gray-100 overflow-hidden">
-            {/* Card Header */}
             <div className="bg-gradient-to-r from-[#4285F4] to-[#0033AD] px-8 py-6">
               <h2 className="text-xl font-semibold text-white flex items-center">
                 <Lock className="w-5 h-5 mr-2" />
@@ -539,27 +490,11 @@ function VerifyContent() {
             </div>
 
             <div className="p-8">
-              {/* Method Selection */}
               <div className="mb-8">
                 <label className="block text-sm font-semibold text-[#202124] mb-3">
                   Verification Method
                 </label>
                 <div className="grid grid-cols-2 gap-4">
-                  <button
-                    onClick={() => setVerificationMethod('hash')}
-                    className={`relative p-4 rounded-xl border-2 transition-all duration-200 ${
-                      verificationMethod === 'hash'
-                        ? 'border-[#4285F4] bg-[#4285F4]/5 shadow-md'
-                        : 'border-gray-200 hover:border-gray-300 bg-white'
-                    }`}
-                  >
-                    <Hash className={`w-6 h-6 mx-auto mb-2 ${
-                      verificationMethod === 'hash' ? 'text-[#4285F4]' : 'text-gray-400'
-                    }`} />
-                    <div className="text-sm font-medium text-[#202124]">Hash Verification</div>
-                    <div className="text-xs text-[#5f6368] mt-1">Verify using SHA-256 hash</div>
-                  </button>
-                  
                   <button
                     onClick={() => setVerificationMethod('csv')}
                     className={`relative p-4 rounded-xl border-2 transition-all duration-200 ${
@@ -574,32 +509,26 @@ function VerifyContent() {
                     <div className="text-sm font-medium text-[#202124]">CSV Verification</div>
                     <div className="text-xs text-[#5f6368] mt-1">Upload CSV file directly</div>
                   </button>
+
+                  <button
+                    onClick={() => setVerificationMethod('hash')}
+                    className={`relative p-4 rounded-xl border-2 transition-all duration-200 ${
+                      verificationMethod === 'hash'
+                        ? 'border-[#4285F4] bg-[#4285F4]/5 shadow-md'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <Hash className={`w-6 h-6 mx-auto mb-2 ${
+                      verificationMethod === 'hash' ? 'text-[#4285F4]' : 'text-gray-400'
+                    }`} />
+                    <div className="text-sm font-medium text-[#202124]">Hash Verification</div>
+                    <div className="text-xs text-[#5f6368] mt-1">Verify using SHA-256 hash</div>
+                  </button>
                 </div>
               </div>
 
-              {/* Input Section */}
               <div className="mb-8">
-                {verificationMethod === 'hash' ? (
-                  <div>
-                    <label htmlFor="hash" className="block text-sm font-semibold text-[#202124] mb-3">
-                      Response Hash
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        id="hash"
-                        value={hash}
-                        onChange={(e) => setHash(e.target.value)}
-                        placeholder="Enter your 64-character SHA-256 hash"
-                        className="w-full px-4 py-3 pl-12 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[#4285F4] focus:border-[#4285F4] text-[#202124] placeholder-gray-400"
-                      />
-                      <Hash className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
-                    </div>
-                    <p className="mt-2 text-xs text-[#5f6368]">
-                      This hash should be exactly 64 characters long and provided by your verification tool
-                    </p>
-                  </div>
-                ) : (
+                {verificationMethod === 'csv' ? (
                   <div>
                     <label htmlFor="csv-file" className="block text-sm font-semibold text-[#202124] mb-3">
                       Upload CSV Dataset
@@ -626,10 +555,29 @@ function VerifyContent() {
                       Upload the CSV file exported directly from your Google Form responses
                     </p>
                   </div>
+                ) : (
+                  <div>
+                    <label htmlFor="hash" className="block text-sm font-semibold text-[#202124] mb-3">
+                      Response Hash
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        id="hash"
+                        value={hash}
+                        onChange={(e) => setHash(e.target.value)}
+                        placeholder="Enter your 64-character SHA-256 hash"
+                        className="w-full px-4 py-3 pl-12 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[#4285F4] focus:border-[#4285F4] text-[#202124] placeholder-gray-400"
+                      />
+                      <Hash className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
+                    </div>
+                    <p className="mt-2 text-xs text-[#5f6368]">
+                      This hash should be exactly 64 characters long and provided by your verification tool
+                    </p>
+                  </div>
                 )}
               </div>
 
-              {/* Processing Status */}
               {processingStep && (
                 <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
                   <div className="flex items-center text-blue-700">
@@ -639,7 +587,6 @@ function VerifyContent() {
                 </div>
               )}
 
-              {/* Generated Hash Display */}
               {generatedHash && (
                 <div className="mb-6 p-4 bg-[#e8f0fe] border border-[#4285F4] rounded-xl">
                   <h4 className="text-sm font-semibold text-[#202124] mb-2 flex items-center">
@@ -652,7 +599,6 @@ function VerifyContent() {
                 </div>
               )}
 
-              {/* Verify Button */}
               <button
                 onClick={handleVerify}
                 disabled={loading || (verificationMethod === 'hash' && !hash) || (verificationMethod === 'csv' && !csvFile)}
@@ -671,7 +617,6 @@ function VerifyContent() {
                 )}
               </button>
 
-              {/* Error Display */}
               {error && (
                 <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl">
                   <div className="flex items-center text-red-700">
@@ -681,7 +626,6 @@ function VerifyContent() {
                 </div>
               )}
 
-              {/* Verification Result */}
               {result && (
                 <div className="mt-8">
                   <div className={`p-6 rounded-xl border-2 ${
@@ -761,7 +705,6 @@ function VerifyContent() {
                       </div>
                     )}
 
-                    {/* Download Report Button */}
                     {result.verified && (
                       <div className="mt-6 text-center">
                         <button
@@ -782,7 +725,6 @@ function VerifyContent() {
             </div>
           </div>
 
-          {/* Info Cards */}
           <div className="mt-8 grid md:grid-cols-2 gap-6">
             <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
               <div className="flex items-center mb-3">
@@ -810,11 +752,10 @@ function VerifyContent() {
           </div>
         </div>
 
-        {/* Footer */}
         <div className="mt-12 text-center">
           <div className="inline-flex items-center text-sm text-[#5f6368]">
             <Shield className="w-4 h-4 mr-2" />
-            Powered by <strong className="ml-1 text-[#4285F4]">NoTamperData</strong> verification technology
+            Powered by <strong className="ml-1 mr-1 text-[#4285F4]">NoTamperData</strong> verification technology
           </div>
         </div>
       </div>
@@ -822,7 +763,6 @@ function VerifyContent() {
   );
 }
 
-// Loading fallback for Suspense
 function VerifyLoadingFallback() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Metadata } from 'next';
 import { Roboto } from 'next/font/google';
 import Link from 'next/link';
