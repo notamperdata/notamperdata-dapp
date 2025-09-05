@@ -56,7 +56,7 @@ function VerifyContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>('csv');
-  const [hash, setHash] = useState<string>('');
+  const [hash, setHash] = useState<string>(''); // Ensure always has a defined value
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -539,6 +539,7 @@ function VerifyContent() {
                         id="csv-file"
                         accept=".csv"
                         onChange={handleFileUpload}
+                        value="" // Reset file input value to prevent controlled/uncontrolled warning
                         className="w-full px-4 py-3 pl-12 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[#4285F4] focus:border-[#4285F4] text-[#202124] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-medium file:bg-[#4285F4] file:text-white hover:file:bg-[#366ac7]"
                       />
                       <Upload className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
