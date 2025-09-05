@@ -309,10 +309,18 @@ function VerifyContent() {
           margin-bottom: 30px; 
         }
         .logo { 
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
           color: #4285F4; 
           font-size: 28px; 
           font-weight: bold; 
           margin-bottom: 10px; 
+        }
+        .logo img {
+          height: 40px;
+          width: auto;
         }
         .subtitle { 
           color: #5f6368; 
@@ -383,7 +391,10 @@ function VerifyContent() {
     </head>
     <body>
       <div class="header">
-        <div class="logo">🛡️ NoTamperData</div>
+        <div class="logo">
+          <img src="/Logo.png" alt="NoTamperData" />
+          NoTamperData
+        </div>
         <div class="subtitle">Blockchain Dataset Verification Report</div>
         <div class="subtitle">Generated on ${new Date().toLocaleString()}</div>
       </div>
@@ -391,7 +402,7 @@ function VerifyContent() {
       <div class="status ${result.verified ? 'verified' : 'not-verified'}">
         <div class="status-icon">${result.verified ? '✅' : '❌'}</div>
         <div class="status-title">${result.verified ? 'Dataset Verified' : 'Verification Failed'}</div>
-        <div>${result.message}</div>
+        <div>${result.message || (result.verified ? 'Your dataset has been successfully verified on the blockchain.' : 'Dataset verification failed. Please check your data and try again.')}</div>
       </div>
 
       ${result.verified ? `
