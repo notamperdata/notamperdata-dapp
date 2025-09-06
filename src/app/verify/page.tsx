@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { Shield, FileText, Upload, Hash, Download, CheckCircle, XCircle, Clock, Lock } from 'lucide-react';
+import { Shield, FileText, Upload, Hash, Download, CheckCircle, XCircle, Clock, Lock, ExternalLink } from 'lucide-react';
 
 interface VerificationResult {
   verified: boolean;
@@ -14,13 +14,20 @@ interface VerificationResult {
     response_id: string;
     timestamp: number;
     version: string;
+    network_id?: number;
   };
-  network?: string;
+  network?: {
+    id: number;
+    type: string;
+    name: string;
+  };
   blockchainProof?: {
     label: number;
     txHash: string;
     blockHeight?: number;
     confirmations?: number;
+    blockTime?: number;
+    explorerUrl?: string;
   };
 }
 
@@ -52,11 +59,31 @@ const LoadingSpinner = ({ className = "h-4 w-4" }: { className?: string }) => (
   </svg>
 );
 
+// Helper function to get explorer URL
+const getCardanoExplorerUrl = (txHash: string, networkId?: number): string => {
+  const isMainnet = networkId === 1;
+  const baseUrl = isMainnet ? 'https://cardanoscan.io' : 'https://preview.cardanoscan.io';
+  return `${baseUrl}/transaction/${txHash}`;
+};
+
+// Helper function to get network badge classes
+const getNetworkBadgeClasses = (networkId?: number): string => {
+  if (networkId === 1) {
+    return 'bg-green-100 text-green-800 border-green-200';
+  }
+  return 'bg-blue-100 text-blue-800 border-blue-200';
+};
+
+// Helper function to get network name
+const getNetworkName = (networkId?: number): string => {
+  return networkId === 1 ? 'Mainnet' : 'Preview Testnet';
+};
+
 function VerifyContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>('csv');
-  const [hash, setHash] = useState<string>(''); // Ensure always has a defined value
+  const [hash, setHash] = useState<string>('');
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -265,16 +292,49 @@ function VerifyContent() {
         throw new Error("The hash could not be verified");
       }
       
-      const data = await response.json();
-      setResult(data);
+      const apiResponse = await response.json();
+      console.log('🔍 Full API Response:', apiResponse);
+      
+      // Handle the wrapped API response structure
+      let processedResult: VerificationResult;
+      
+      if (apiResponse.success && apiResponse.data) {
+        // Successful verification - extract from data wrapper
+        console.log('✅ Success response detected, extracting data...');
+        console.log('📋 Data object:', apiResponse.data);
+        
+        processedResult = {
+          verified: true,
+          message: apiResponse.data.message,
+          transactionHash: apiResponse.data.transactionHash,
+          metadata: apiResponse.data.metadata,
+          network: apiResponse.data.network,
+          blockchainProof: apiResponse.data.blockchainProof
+        };
+      } else {
+        // Failed verification
+        console.log('❌ Failed verification response');
+        processedResult = {
+          verified: false,
+          message: apiResponse.message || 'Verification failed',
+          network: apiResponse.network
+        };
+      }
+      
+      console.log('🎯 Processed result:', processedResult);
+      console.log('🔗 Transaction Hash:', processedResult.transactionHash);
+      console.log('🌐 Network Info:', processedResult.network);
+      console.log('⛓️ Blockchain Proof:', processedResult.blockchainProof);
+      
+      setResult(processedResult);
     } catch (err) {
+      console.error('❌ Verification error:', err);
       if (err instanceof Error) {
         setError(err.message);
       } else {
         setError('An unknown error occurred');
       }
       setResult(null);
-      console.error('Verification error:', err);
     } finally {
       setLoading(false);
       setProcessingStep('');
@@ -289,6 +349,14 @@ function VerifyContent() {
       setError('Please allow popups to download the report');
       return;
     }
+
+    // Get explorer URLs for both hashes - check multiple possible sources for transaction hash
+    const txHash = result.transactionHash || result.blockchainProof?.txHash;
+    const networkId = result.metadata?.network_id || result.network?.id;
+    const txExplorerUrl = txHash ? getCardanoExplorerUrl(txHash, networkId) : '';
+    const dataHashDisplay = generatedHash || result.metadata?.hash || 'N/A';
+    
+    console.log('📄 Generating PDF with:', { txHash, networkId, txExplorerUrl, dataHashDisplay });
 
     const reportHtml = `
     <!DOCTYPE html>
@@ -375,6 +443,11 @@ function VerifyContent() {
           word-break: break-all; 
           max-width: 60%; 
         }
+        .clickable-hash {
+          color: #4285F4;
+          text-decoration: underline;
+          cursor: pointer;
+        }
         .footer { 
           text-align: center; 
           margin-top: 40px; 
@@ -414,40 +487,22 @@ function VerifyContent() {
               <span class="detail-value">${result.metadata.form_id}</span>
             </div>
           ` : ''}
-          ${result.metadata?.response_id ? `
-            <div class="detail-row">
-              <span class="detail-label">Response ID:</span>
-              <span class="detail-value">${result.metadata.response_id}</span>
-            </div>
-          ` : ''}
           ${result.metadata?.timestamp ? `
             <div class="detail-row">
               <span class="detail-label">Timestamp:</span>
               <span class="detail-value">${new Date(result.metadata.timestamp).toLocaleString()}</span>
             </div>
           ` : ''}
-          ${result.transactionHash ? `
+          <div class="detail-row">
+            <span class="detail-label">Dataset Hash (SHA-256):</span>
+            <span class="detail-value">${dataHashDisplay}</span>
+          </div>
+          ${txHash ? `
             <div class="detail-row">
               <span class="detail-label">Transaction Hash:</span>
-              <span class="detail-value">${result.transactionHash}</span>
-            </div>
-          ` : ''}
-          ${result.network ? `
-            <div class="detail-row">
-              <span class="detail-label">Blockchain Network:</span>
-              <span class="detail-value">${result.network}</span>
-            </div>
-          ` : ''}
-          ${result.blockchainProof?.confirmations ? `
-            <div class="detail-row">
-              <span class="detail-label">Confirmations:</span>
-              <span class="detail-value">${result.blockchainProof.confirmations}</span>
-            </div>
-          ` : ''}
-          ${generatedHash ? `
-            <div class="detail-row">
-              <span class="detail-label">Dataset Hash:</span>
-              <span class="detail-value">${generatedHash}</span>
+              <span class="detail-value">
+                <a href="${txExplorerUrl}" target="_blank" class="clickable-hash">${txHash}</a>
+              </span>
             </div>
           ` : ''}
         </div>
@@ -550,7 +605,7 @@ function VerifyContent() {
                         id="csv-file"
                         accept=".csv"
                         onChange={handleFileUpload}
-                        value="" // Reset file input value to prevent controlled/uncontrolled warning
+                        value=""
                         className="w-full px-4 py-3 pl-12 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[#4285F4] focus:border-[#4285F4] text-[#202124] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-medium file:bg-[#4285F4] file:text-white hover:file:bg-[#366ac7]"
                       />
                       <Upload className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
@@ -680,12 +735,7 @@ function VerifyContent() {
                               <span className="font-mono text-sm text-[#202124]">{result.metadata.form_id}</span>
                             </div>
                           )}
-                          {result.metadata.response_id && (
-                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                              <span className="font-medium text-[#5f6368]">Response ID</span>
-                              <span className="font-mono text-sm text-[#202124]">{result.metadata.response_id}</span>
-                            </div>
-                          )}
+                  
                           {result.metadata.timestamp && (
                             <div className="flex justify-between items-center py-2 border-b border-gray-100">
                               <span className="font-medium text-[#5f6368]">Verification Time</span>
@@ -695,24 +745,51 @@ function VerifyContent() {
                               </span>
                             </div>
                           )}
-                          {result.transactionHash && (
-                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                              <span className="font-medium text-[#5f6368]">Transaction Hash</span>
-                              <span className="font-mono text-xs text-[#202124] break-all max-w-xs">{result.transactionHash}</span>
-                            </div>
-                          )}
+                          {/* Network Information */}
                           {result.network && (
                             <div className="flex justify-between items-center py-2 border-b border-gray-100">
                               <span className="font-medium text-[#5f6368]">Blockchain Network</span>
-                              <span className="font-mono text-sm text-[#202124]">{result.network}</span>
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getNetworkBadgeClasses(result.network.id)}`}>
+                                {result.network.name || getNetworkName(result.network.id)}
+                              </span>
                             </div>
                           )}
-                          {result.blockchainProof?.confirmations && (
-                            <div className="flex justify-between items-center py-2">
-                              <span className="font-medium text-[#5f6368]">Network Confirmations</span>
-                              <span className="font-mono text-sm text-[#202124]">{result.blockchainProof.confirmations}</span>
+                          {/* Dataset Hash */}
+                          <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                            <span className="font-medium text-[#5f6368]">Dataset Hash (SHA-256)</span>
+                            <span className="font-mono text-xs text-[#202124] break-all max-w-xs">
+                              {generatedHash || result.metadata.hash || 'N/A'}
+                            </span>
+                          </div>
+                          {/* Transaction Hash with Explorer Link */}
+                          {(result.transactionHash || result.blockchainProof?.txHash) && (
+                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                              <span className="font-medium text-[#5f6368]">Transaction Hash</span>
+                              <div className="flex items-center space-x-2">
+                                <span className="font-mono text-xs text-[#202124] break-all max-w-xs">
+                                  {result.transactionHash || result.blockchainProof?.txHash}
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    const txHash = result.transactionHash || result.blockchainProof?.txHash;
+                                    const networkId = result.metadata?.network_id || result.network?.id;
+                                    console.log('🔗 Opening explorer for:', { txHash, networkId });
+                                    if (txHash) {
+                                      const explorerUrl = getCardanoExplorerUrl(txHash, networkId);
+                                      console.log('🌐 Explorer URL:', explorerUrl);
+                                      window.open(explorerUrl, '_blank');
+                                    }
+                                  }}
+                                  className="inline-flex items-center px-2 py-1 bg-[#4285F4] text-white rounded-lg hover:bg-[#366ac7] transition-colors duration-200 text-xs"
+                                  title="View on Cardano Explorer"
+                                >
+                                  <ExternalLink className="w-3 h-3 mr-1" />
+                                  View
+                                </button>
+                              </div>
                             </div>
                           )}
+          
                         </div>
                       </div>
                     )}
