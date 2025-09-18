@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Roboto } from 'next/font/google';
 import Link from 'next/link';
 import Image from 'next/image';
+import Navigation from '@/components/Navigation';
 import './globals.css';
 
 const roboto = Roboto({ 
@@ -14,7 +15,7 @@ const roboto = Roboto({
 export const metadata: Metadata = {
  title: 'NoTamperData - Blockchain Verification for Google Forms',
  description: 'Verify the integrity of Google Form responses using Cardano blockchain technology',
-   icons: {
+ icons: {
    icon: '/Logo.ico',
  },
 };
@@ -27,55 +28,10 @@ export default function RootLayout({
  return (
    <html lang="en">
      <body className={`${roboto.className} ${roboto.variable} bg-white min-h-screen`}>
-       <header className="bg-white shadow-sm sticky top-0 z-10">
-         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-           <div className="flex justify-between h-16 items-center">
-             <div className="flex items-center">
-               <Link href="/" className="flex-shrink-0 flex items-center">
-                 <Image 
-                   src="/Logo.png" 
-                   alt="NoTamperData Logo" 
-                   width={32} 
-                   height={32} 
-                   className="mr-3"
-                 />
-                 <span className="text-xl font-bold text-[#4285F4]">NoTamper<span className="text-[#0033AD]">Data</span></span>
-               </Link>
-             </div>
-             <nav className="flex space-x-1">
-               <Link 
-                 href="/verify" 
-                 className="text-gray-700 hover:text-[#4285F4] hover:bg-[#e8f0fe] px-3 py-2 rounded-md text-sm font-medium transition-colors"
-               >
-                 Verify
-               </Link>
-               <Link 
-                 href="/access" 
-                 className="text-gray-700 hover:text-[#4285F4] hover:bg-[#e8f0fe] px-3 py-2 rounded-md text-sm font-medium transition-colors"
-               >
-                 Access Token
-               </Link>
-               <Link 
-                 href="/support" 
-                 className="text-gray-700 hover:text-[#4285F4] hover:bg-[#e8f0fe] px-3 py-2 rounded-md text-sm font-medium transition-colors"
-               >
-                 Support
-               </Link>
-               <a 
-                 href="https://workspace.google.com/marketplace/app/NoTamperData" 
-                 target="_blank"
-                 rel="noopener noreferrer"
-                 className="ml-3 bg-[#0033AD] text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-[#002A8C] transition-colors"
-               >
-                 Get Add-on
-               </a>
-             </nav>
-           </div>
-         </div>
-       </header>
+       <Navigation />
        
        <div className='bg-white'>
-        {children}
+         {children}
        </div>
        
        <footer className="bg-white border-t border-gray-200">
@@ -91,14 +47,14 @@ export default function RootLayout({
                />
                <span className="text-sm font-semibold text-[#0033AD]">NoTamperData</span>
              </div>
-             <div className="flex space-x-6">
-               <Link href="/privacy" className="text-sm text-gray-500 hover:text-[#0033AD]">
+             <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-6 text-center">
+               <Link href="/privacy" className="text-sm text-gray-500 hover:text-[#0033AD] transition-colors">
                  Privacy Policy
                </Link>
-               <Link href="/terms" className="text-sm text-gray-500 hover:text-[#0033AD]">
+               <Link href="/terms" className="text-sm text-gray-500 hover:text-[#0033AD] transition-colors">
                  Terms of Service
                </Link>
-               <Link href="/support" className="text-sm text-gray-500 hover:text-[#0033AD]">
+               <Link href="/support" className="text-sm text-gray-500 hover:text-[#0033AD] transition-colors">
                  Contact
                </Link>
              </div>
