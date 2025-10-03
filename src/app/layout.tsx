@@ -16,7 +16,7 @@ export const metadata: Metadata = {
  title: 'NoTamperData - Blockchain Verification for Google Forms',
  description: 'Verify the integrity of Google Form responses using Cardano blockchain technology',
  icons: {
-   icon: '/Logo.ico',
+   icon: '/logo.ico',
  },
 };
 
@@ -39,8 +39,8 @@ export default function RootLayout({
            <div className="flex flex-col items-center md:flex-row md:justify-between">
              <div className="flex items-center mb-4 md:mb-0">
                <Image 
-                 src="/Logo.png" 
-                 alt="NoTamperData Logo" 
+                 src="/logo.png" 
+                 alt="NoTamperData logo" 
                  width={24} 
                  height={24} 
                  className="mr-2"
