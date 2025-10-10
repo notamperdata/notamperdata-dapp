@@ -11,7 +11,7 @@ export default function Home() {
               <div className="mx-auto max-w-2xl text-center">
                 <div className="flex justify-center mb-6">
                   <Image 
-                    src="/Logo.png" 
+                    src="/logo.png" 
                     alt="NoTamperData Logo" 
                     width={64}
                     height={64}

@@ -24,7 +24,7 @@ export default function Navigation() {
           <div className="flex items-center">
             <Link href="/" className="flex-shrink-0 flex items-center">
               <Image 
-                src="/Logo.png" 
+                src="/logo.png" 
                 alt="NoTamperData Logo" 
                 width={32} 
                 height={32} 
