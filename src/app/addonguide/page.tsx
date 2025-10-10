@@ -13,7 +13,7 @@ export default function AddonGuidePage() {
                 Add-on Not Yet in Marketplace
               </p>
               <p className="text-blue-800 text-sm mt-1">
-                The NotamperData add-on is currently under Google's review process. 
+                The NotamperData add-on is currently under Google&apos;s review process. 
                 In the meantime, you can install it manually using our beta access method.
               </p>
               <a 
@@ -53,7 +53,7 @@ export default function AddonGuidePage() {
               <div>
                 <h3 className="font-semibold text-gray-900 mb-2">Install the Add-on</h3>
                 <p className="text-gray-700">
-                  Open your Google Form, click the puzzle piece icon (Add-ons), search for "NotamperData", and click Install. 
+                  Open your Google Form, click the puzzle piece icon (Add-ons), search for &quot;NotamperData&quot;, and click Install. 
                   Accept the required permissions when prompted.
                 </p>
               </div>
@@ -78,7 +78,7 @@ export default function AddonGuidePage() {
               <div>
                 <h3 className="font-semibold text-gray-900 mb-2">Configure Access Token</h3>
                 <p className="text-gray-700 mb-2">
-                  Enter your NotamperData access token in the API Configuration section and click "Save Access Token".
+                  Enter your NotamperData access token in the API Configuration section and click &quot;Save Access Token&quot;.
                 </p>
                 <div className="bg-gray-50 p-3 rounded text-sm text-gray-600 space-y-2">
                   <p>
@@ -115,7 +115,7 @@ export default function AddonGuidePage() {
               <div>
                 <h3 className="font-semibold text-gray-900 mb-2">Process Responses</h3>
                 <p className="text-gray-700">
-                  Click "Process Responses" to hash your form responses and store them on the Cardano blockchain. 
+                  Click &quot;Process Responses&quot; to hash your form responses and store them on the Cardano blockchain. 
                   You can also set up automatic batch processing.
                 </p>
               </div>
@@ -134,7 +134,7 @@ export default function AddonGuidePage() {
                 <h3 className="font-semibold text-gray-900">Privacy-Preserving</h3>
               </div>
               <p className="text-gray-700">
-                Only SHA-256 hashes of your responses are transmitted. Your actual form data never leaves Google's secure environment.
+                Only SHA-256 hashes of your responses are transmitted. Your actual form data never leaves Google&apos;s secure environment.
               </p>
             </div>
 
@@ -154,7 +154,7 @@ export default function AddonGuidePage() {
                 <h3 className="font-semibold text-gray-900">Blockchain Verification</h3>
               </div>
               <p className="text-gray-700">
-                Hashes are stored on the Cardano blockchain, providing immutable proof that your data hasn't been tampered with.
+                Hashes are stored on the Cardano blockchain, providing immutable proof that your data hasn&apos;t been tampered with.
               </p>
             </div>
 
@@ -185,14 +185,14 @@ export default function AddonGuidePage() {
                 Before you can use NotamperData, you need to configure your access token:
               </p>
               <ol className="list-decimal pl-6 space-y-2 text-gray-700">
-                <li>In the add-on sidebar, find the "API Configuration" section</li>
-                <li>Enter your access token (starts with "ak_")</li>
-                <li>Click "Save Access Token"</li>
-                <li>Click "Test Connection" to verify it works</li>
+                <li>In the add-on sidebar, find the &quot;API Configuration&quot; section</li>
+                <li>Enter your access token (starts with &quot;ak_&quot;)</li>
+                <li>Click &quot;Save Access Token&quot;</li>
+                <li>Click &quot;Test Connection&quot; to verify it works</li>
                 <li>The status indicator will turn green when connected</li>
               </ol>
               <div className="mt-3 bg-blue-50 p-3 rounded text-sm text-gray-700">
-                <strong>Security Note:</strong> Your token is stored securely in Google's infrastructure and is only used to authenticate with NotamperData servers.
+                <strong>Security Note:</strong> Your token is stored securely in Google&apos;s infrastructure and is only used to authenticate with NotamperData servers.
               </div>
             </div>
 
@@ -204,8 +204,8 @@ export default function AddonGuidePage() {
               </p>
               <ol className="list-decimal pl-6 space-y-2 text-gray-700">
                 <li>Open the NotamperData add-on sidebar</li>
-                <li>Scroll to "Manual Processing" section</li>
-                <li>Click "Process Responses"</li>
+                <li>Scroll to &quot;Manual Processing&quot; section</li>
+                <li>Click &quot;Process Responses&quot;</li>
                 <li>Wait for the hash to be generated and stored (typically 3-10 seconds)</li>
                 <li>A success message will show the hash that was stored</li>
               </ol>
@@ -221,7 +221,7 @@ export default function AddonGuidePage() {
                 To automatically process responses on a schedule:
               </p>
               <ol className="list-decimal pl-6 space-y-2 text-gray-700">
-                <li>In the "Batch Processing" section, select your preferred frequency:
+                <li>In the &quot;Batch Processing&quot; section, select your preferred frequency:
                   <ul className="list-disc pl-6 mt-2 space-y-1">
                     <li><strong>Manual Only:</strong> No automatic processing</li>
                     <li><strong>Daily:</strong> Process once per day at a specific time</li>
@@ -230,7 +230,7 @@ export default function AddonGuidePage() {
                   </ul>
                 </li>
                 <li>Configure the time and/or day based on your selection</li>
-                <li>Click "Save Configuration"</li>
+                <li>Click &quot;Save Configuration&quot;</li>
                 <li>The system will automatically process responses according to your schedule</li>
               </ol>
               <div className="mt-3 bg-yellow-50 p-3 rounded text-sm text-gray-700">
@@ -242,15 +242,15 @@ export default function AddonGuidePage() {
             <div>
               <h3 className="text-xl font-semibold text-gray-900 mb-3">Verifying Your Data</h3>
               <p className="text-gray-700 mb-3">
-                To verify that your form responses haven't been tampered with:
+                To verify that your form responses haven&apos;t been tampered with:
               </p>
               <ol className="list-decimal pl-6 space-y-2 text-gray-700">
-                <li>In Google Forms, go to the "Responses" tab</li>
-                <li>Click the three dots menu and select "Download responses (.csv)"</li>
+                <li>In Google Forms, go to the &quot;Responses&quot; tab</li>
+                <li>Click the three dots menu and select &quot;Download responses (.csv)&quot;</li>
                 <li>Go to <a href="https://www.notamperdata.com/verify" className="text-blue-600 hover:underline">notamperdata.com/verify</a></li>
                 <li>Upload your CSV file</li>
                 <li>The system will generate a hash and check it against the blockchain</li>
-                <li>You'll see a verification report showing whether your data is authentic</li>
+                <li>You&apos;ll see a verification report showing whether your data is authentic</li>
               </ol>
             </div>
           </div>
@@ -262,7 +262,7 @@ export default function AddonGuidePage() {
           
           <div className="space-y-6">
             <div>
-              <h3 className="font-semibold text-gray-900 mb-2">Add-on sidebar won't open</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Add-on sidebar won&apos;t open</h3>
               <ul className="list-disc pl-6 space-y-1 text-gray-700">
                 <li>Refresh the form page and try again</li>
                 <li>Ensure you have edit permissions for the form</li>
@@ -273,9 +273,9 @@ export default function AddonGuidePage() {
             <div>
               <h3 className="font-semibold text-gray-900 mb-2">Connection test fails</h3>
               <ul className="list-disc pl-6 space-y-1 text-gray-700">
-                <li>Verify your access token is correct (should start with "ak_")</li>
+                <li>Verify your access token is correct (should start with &quot;ak_&quot;)</li>
                 <li>Check your internet connection</li>
-                <li>Make sure you've copied the entire token without extra spaces</li>
+                <li>Make sure you&apos;ve copied the entire token without extra spaces</li>
                 <li>Generate a new token from your NotamperData dashboard if needed</li>
               </ul>
             </div>
@@ -283,8 +283,8 @@ export default function AddonGuidePage() {
             <div>
               <h3 className="font-semibold text-gray-900 mb-2">Verification fails with hash mismatch</h3>
               <ul className="list-disc pl-6 space-y-1 text-gray-700">
-                <li>Ensure you're using the same CSV export format from Google Forms</li>
-                <li>Don't modify the CSV file before verification</li>
+                <li>Ensure you&apos;re using the same CSV export format from Google Forms</li>
+                <li>Don&apos;t modify the CSV file before verification</li>
                 <li>On Windows, try exporting with different line endings if issues persist</li>
                 <li>Make sure the responses were processed after the add-on was configured</li>
               </ul>
@@ -343,8 +343,8 @@ export default function AddonGuidePage() {
             <div>
               <h3 className="font-semibold text-gray-900 mb-2">Is my data secure?</h3>
               <p className="text-gray-700">
-                Yes. Your actual form data never leaves Google's infrastructure. Only one-way cryptographic hashes 
-                are sent to NotamperData servers. It's mathematically impossible to reverse a hash to get the original data.
+                Yes. Your actual form data never leaves Google&apos;s infrastructure. Only one-way cryptographic hashes 
+                are sent to NotamperData servers. It&apos;s mathematically impossible to reverse a hash to get the original data.
               </p>
             </div>
 
