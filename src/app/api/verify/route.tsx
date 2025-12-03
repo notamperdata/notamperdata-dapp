@@ -82,6 +82,16 @@ interface VerificationResult {
   error?: string;
 }
 
+const NETWORK_IDS = {
+  TESTNET: 0,
+  MAINNET: 1,
+} as const;
+
+const DEFAULT_NETWORK_ID =
+  (process.env.NEXT_PUBLIC_CARDANO_NETWORK || '').toLowerCase() === 'mainnet'
+    ? NETWORK_IDS.MAINNET
+    : NETWORK_IDS.TESTNET;
+
 // Helper function to get Blockfrost URL for a specific network
 function getBlockfrostUrl(networkId: number): string {
   const networkType = getNetworkTypeFromId(networkId);
@@ -90,7 +100,7 @@ function getBlockfrostUrl(networkId: number): string {
 
 // Helper function to get explorer URL
 function getExplorerUrl(txHash: string, networkId: number): string {
-  if (networkId === 1) {
+  if (networkId === NETWORK_IDS.MAINNET) {
     return `https://cardanoscan.io/transaction/${txHash}`;
   }
   return `https://preview.cardanoscan.io/transaction/${txHash}`;
@@ -239,11 +249,11 @@ async function verifyHashOnBlockchain(
   hash: string,
   formId?: string,
   responseId?: string,
-  networkId: number = 0
+  networkId: number = DEFAULT_NETWORK_ID
 ): Promise<VerificationResult> {
   try {
     // Validate network ID
-    if (networkId !== 0 && networkId !== 1) {
+    if (networkId !== NETWORK_IDS.TESTNET && networkId !== NETWORK_IDS.MAINNET) {
       return {
         verified: false,
         message: 'Invalid network ID. Must be 0 (testnet) or 1 (mainnet)',
@@ -252,8 +262,8 @@ async function verifyHashOnBlockchain(
     }
 
     const networkType = getNetworkTypeFromId(networkId);
-    const blockfrostProjectId = resolveBlockfrostProjectId(networkType);
-    const networkName = networkId === 1 ? 'Mainnet' : 'Preview Testnet';
+    const blockfrostProjectId = resolveBlockfrostProjectId();
+    const networkName = networkId === NETWORK_IDS.MAINNET ? 'Mainnet' : 'Preview Testnet';
 
     console.log(`🔍 Verifying hash on ${networkName}:`, {
       hash,
@@ -392,8 +402,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get network ID from request or default to testnet (0)
-    const networkId = body.networkId ?? 0;
+    // Get network ID from request or default to environment-configured network
+    const networkId =
+      typeof body.networkId === 'number' && !Number.isNaN(body.networkId)
+        ? body.networkId
+        : DEFAULT_NETWORK_ID;
     
     const result = await verifyHashOnBlockchain(
       body.hash,
@@ -444,7 +457,12 @@ export async function GET(request: NextRequest) {
     const hash = searchParams.get('hash');
     const formId = searchParams.get('formId');
     const responseId = searchParams.get('responseId');
-    const networkId = parseInt(searchParams.get('networkId') || '0');
+    const rawNetworkId = searchParams.get('networkId');
+    const parsedNetworkId = rawNetworkId !== null ? Number(rawNetworkId) : undefined;
+    const networkId =
+      parsedNetworkId !== undefined && !Number.isNaN(parsedNetworkId)
+        ? parsedNetworkId
+        : DEFAULT_NETWORK_ID;
 
     if (!hash) {
       return NextResponse.json(

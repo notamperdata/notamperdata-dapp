@@ -17,34 +17,26 @@ export const PAYMENT_CONSTANTS = {
   PLATFORM_FEE_PERCENTAGE: 0, // No additional fees
 } as const;
 
-/**
- * Retrieve and validate required platform wallet address env vars.
- */
-type PlatformAddressEnvKey =
-  | 'NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_PREVIEW'
-  | 'NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_PREPROD'
-  | 'NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_MAINNET';
+const getPlatformWalletAddress = (): string => {
+  const rawValue = sanitizeAddress(process.env.NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS);
 
-const getRequiredAddress = (envKey: PlatformAddressEnvKey, networkLabel: string): string => {
-  const rawValue = sanitizeAddress(process.env[envKey]);
-  
   if (!rawValue) {
-    const message = `[paymentConfig] Missing ${envKey} for ${networkLabel}. ` +
-      `Set ${envKey} to the platform wallet address for ${networkLabel} operations.`;
+    const message = '[paymentConfig] Missing NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS. ' +
+      'Set NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS to the platform wallet address for the active network.';
     console.error(message);
     throw new Error(message);
   }
-  
+
   return rawValue;
 };
 
-// Platform wallet addresses by network - target addresses for self-send transactions
-// Platform wallet sends to itself with metadata for cost-efficient hash storage
-export const PLATFORM_ADDRESSES = {
-  Preview: getRequiredAddress('NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_PREVIEW', 'Preview testnet'),
-  Preprod: getRequiredAddress('NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_PREPROD', 'Preprod testnet'),
-  Mainnet: getRequiredAddress('NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_MAINNET', 'Cardano Mainnet')
-} as const;
+const doesAddressMatchNetwork = (address: string, networkId: number): boolean => {
+  const isMainnet = networkId === 1;
+  const isMainnetAddress = address.startsWith('addr1');
+  const isTestnetAddress = address.startsWith('addr_test1');
+
+  return (isMainnet && isMainnetAddress) || (!isMainnet && isTestnetAddress);
+};
 
 // Network types
 export type NetworkType = 'Preview' | 'Preprod' | 'Mainnet';
@@ -257,12 +249,19 @@ export const paymentUtils = {
    */
   getPlatformAddress: (networkId: number): string => {
     const networkType = getNetworkTypeFromId(networkId);
-    const address = sanitizeAddress(PLATFORM_ADDRESSES[networkType]);
+    const address = getPlatformWalletAddress();
     
     if (!paymentValidation.isValidAddress(address)) {
       throw new Error(
         `Invalid platform wallet address for ${networkType}. ` +
-        `Check NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_${networkType.toUpperCase()}`
+        `Check NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS`
+      );
+    }
+
+    if (!doesAddressMatchNetwork(address, networkId)) {
+      throw new Error(
+        `Configured platform wallet address does not match the expected network (${networkType}). ` +
+        `Ensure NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS is set for ${networkType}.`
       );
     }
     
@@ -272,8 +271,8 @@ export const paymentUtils = {
   /**
    * Get platform address by network type (legacy support)
    */
-  getPlatformAddressByType: (networkType: NetworkType): string => {
-    return PLATFORM_ADDRESSES[networkType];
+  getPlatformAddressByType: (_networkType: NetworkType): string => {
+    return getPlatformWalletAddress();
   },
 
   /**
@@ -304,11 +303,7 @@ export const paymentUtils = {
    * Determine if address matches network
    */
   isAddressForNetwork: (address: string, networkId: number): boolean => {
-    const isMainnet = networkId === 1;
-    const isMainnetAddress = address.startsWith('addr1');
-    const isTestnetAddress = address.startsWith('addr_test1');
-    
-    return (isMainnet && isMainnetAddress) || (!isMainnet && isTestnetAddress);
+    return doesAddressMatchNetwork(address, networkId);
   },
 
   /**

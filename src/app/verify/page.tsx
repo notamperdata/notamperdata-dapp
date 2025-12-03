@@ -61,14 +61,14 @@ const LoadingSpinner = ({ className = "h-4 w-4" }: { className?: string }) => (
 
 // Helper function to get explorer URL
 const getCardanoExplorerUrl = (txHash: string, networkId?: number): string => {
-  const isMainnet = networkId === 1;
+  const isMainnet = networkId === NETWORK_IDS.MAINNET;
   const baseUrl = isMainnet ? 'https://cardanoscan.io' : 'https://preview.cardanoscan.io';
   return `${baseUrl}/transaction/${txHash}`;
 };
 
 // Helper function to get network badge classes
 const getNetworkBadgeClasses = (networkId?: number): string => {
-  if (networkId === 1) {
+  if (networkId === NETWORK_IDS.MAINNET) {
     return 'bg-green-100 text-green-800 border-green-200';
   }
   return 'bg-blue-100 text-blue-800 border-blue-200';
@@ -76,8 +76,21 @@ const getNetworkBadgeClasses = (networkId?: number): string => {
 
 // Helper function to get network name
 const getNetworkName = (networkId?: number): string => {
-  return networkId === 1 ? 'Mainnet' : 'Preview Testnet';
+  return networkId === NETWORK_IDS.MAINNET ? 'Mainnet' : 'Preview Testnet';
 };
+
+const NETWORK_IDS = {
+  TESTNET: 0,
+  MAINNET: 1,
+} as const;
+
+const DEFAULT_NETWORK_ID =
+  (process.env.NEXT_PUBLIC_CARDANO_NETWORK || 'Preview').toLowerCase() === 'mainnet'
+    ? NETWORK_IDS.MAINNET
+    : NETWORK_IDS.TESTNET;
+
+const DEFAULT_NETWORK_LABEL =
+  DEFAULT_NETWORK_ID === NETWORK_IDS.MAINNET ? 'Mainnet' : 'Preview Testnet';
 
 function VerifyContent() {
   const params = useParams();
@@ -292,7 +305,10 @@ function VerifyContent() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ hash: hashToVerify }),
+        body: JSON.stringify({ 
+          hash: hashToVerify,
+          networkId: DEFAULT_NETWORK_ID
+        }),
       });
       
       if (!response.ok) {
@@ -561,6 +577,9 @@ function VerifyContent() {
               </h2>
               <p className="text-blue-100 text-sm mt-1">
                 Cryptographically verify your dataset against immutable blockchain records
+              </p>
+              <p className="text-xs text-blue-100 mt-2">
+                Network: <span className="font-semibold text-white">{DEFAULT_NETWORK_LABEL}</span>
               </p>
             </div>
 

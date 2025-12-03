@@ -99,7 +99,7 @@ export class PaymentProcessor {
     
     // Use platform address instead of contract address for new self-send architecture
     this.platformAddress = paymentUtils.getPlatformAddress(this.networkId);
-    this.blockfrostProjectId = process.env.NEXT_PUBLIC_BLOCKFROST_PROJECT_ID || '';
+    this.blockfrostProjectId = process.env.BLOCKFROST_PROJECT_ID || '';
     this.blockfrostUrl = paymentUtils.getBlockfrostUrl(this.networkId);
 
     console.log(`Payment processor initialized for self-send architecture:`);

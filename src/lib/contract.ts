@@ -37,13 +37,6 @@ export const DEPLOYMENT_DATA = {
 // Network type mapping
 export type NetworkType = 'Preview' | 'Preprod' | 'Mainnet';
 
-// Helper map for Blockfrost project IDs per network
-const BLOCKFROST_ENV_OVERRIDE: Record<NetworkType, string | undefined> = {
-  Preview: process.env.BLOCKFROST_PROJECT_ID_PREVIEW,
-  Preprod: process.env.BLOCKFROST_PROJECT_ID_PREPROD,
-  Mainnet: process.env.BLOCKFROST_PROJECT_ID_MAINNET
-};
-
 // Configuration interface
 export interface ContractConfig {
   blockfrostProjectId: string;
@@ -69,17 +62,12 @@ export const networkUrls = {
 
 /**
  * Resolve the Blockfrost project ID for a network.
- * Falls back to BLOCKFROST_PROJECT_ID for backwards compatibility.
  */
-export function resolveBlockfrostProjectId(networkType: NetworkType): string {
-  const fallback = process.env.BLOCKFROST_PROJECT_ID || '';
-  const projectId = BLOCKFROST_ENV_OVERRIDE[networkType] || fallback;
+export function resolveBlockfrostProjectId(): string {
+  const projectId = (process.env.BLOCKFROST_PROJECT_ID || '').trim();
 
   if (!projectId) {
-    const envKey = `BLOCKFROST_PROJECT_ID_${networkType.toUpperCase()}`;
-    throw new Error(
-      `${envKey} (or BLOCKFROST_PROJECT_ID) environment variable is required for ${networkType}`
-    );
+    throw new Error('BLOCKFROST_PROJECT_ID environment variable is required');
   }
 
   return projectId;
@@ -119,7 +107,7 @@ export function getLucidNetworkType(networkType: NetworkType): Network {
 export function loadContractConfig(networkId?: number): ContractConfig {
   // Get network ID from parameter or try to read from environment as fallback
   const detectedNetworkId = networkId ?? (
-    process.env.NEXT_PUBLIC_CARDANO_NETWORK === 'Mainnet' ? 1 : 0
+    (process.env.NEXT_PUBLIC_CARDANO_NETWORK || '').toLowerCase() === 'mainnet' ? 1 : 0
   );
   
   const networkType = getNetworkTypeFromId(detectedNetworkId);
@@ -130,7 +118,7 @@ export function loadContractConfig(networkId?: number): ContractConfig {
     DEPLOYMENT_DATA.contractAddress[networkType];
 
   const config: ContractConfig = {
-    blockfrostProjectId: resolveBlockfrostProjectId(networkType),
+    blockfrostProjectId: resolveBlockfrostProjectId(),
     platformWalletMnemonic: process.env.PLATFORM_WALLET_MNEMONIC || '',
     networkId: detectedNetworkId,
     networkType,
