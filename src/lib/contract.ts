@@ -37,6 +37,13 @@ export const DEPLOYMENT_DATA = {
 // Network type mapping
 export type NetworkType = 'Preview' | 'Preprod' | 'Mainnet';
 
+// Helper map for Blockfrost project IDs per network
+const BLOCKFROST_ENV_OVERRIDE: Record<NetworkType, string | undefined> = {
+  Preview: process.env.BLOCKFROST_PROJECT_ID_PREVIEW,
+  Preprod: process.env.BLOCKFROST_PROJECT_ID_PREPROD,
+  Mainnet: process.env.BLOCKFROST_PROJECT_ID_MAINNET
+};
+
 // Configuration interface
 export interface ContractConfig {
   blockfrostProjectId: string;
@@ -59,6 +66,24 @@ export const networkUrls = {
   Preprod: 'https://cardano-preprod.blockfrost.io/api/v0',
   Mainnet: 'https://cardano-mainnet.blockfrost.io/api/v0'
 };
+
+/**
+ * Resolve the Blockfrost project ID for a network.
+ * Falls back to BLOCKFROST_PROJECT_ID for backwards compatibility.
+ */
+export function resolveBlockfrostProjectId(networkType: NetworkType): string {
+  const fallback = process.env.BLOCKFROST_PROJECT_ID || '';
+  const projectId = BLOCKFROST_ENV_OVERRIDE[networkType] || fallback;
+
+  if (!projectId) {
+    const envKey = `BLOCKFROST_PROJECT_ID_${networkType.toUpperCase()}`;
+    throw new Error(
+      `${envKey} (or BLOCKFROST_PROJECT_ID) environment variable is required for ${networkType}`
+    );
+  }
+
+  return projectId;
+}
 
 /**
  * Get network type from network ID
@@ -105,7 +130,7 @@ export function loadContractConfig(networkId?: number): ContractConfig {
     DEPLOYMENT_DATA.contractAddress[networkType];
 
   const config: ContractConfig = {
-    blockfrostProjectId: process.env.BLOCKFROST_PROJECT_ID || '',
+    blockfrostProjectId: resolveBlockfrostProjectId(networkType),
     platformWalletMnemonic: process.env.PLATFORM_WALLET_MNEMONIC || '',
     networkId: detectedNetworkId,
     networkType,
@@ -113,10 +138,6 @@ export function loadContractConfig(networkId?: number): ContractConfig {
   };
 
   // Validate required environment variables
-  if (!config.blockfrostProjectId) {
-    throw new Error('BLOCKFROST_PROJECT_ID environment variable is required');
-  }
-  
   if (!config.platformWalletMnemonic) {
     throw new Error('PLATFORM_WALLET_MNEMONIC environment variable is required');
   }

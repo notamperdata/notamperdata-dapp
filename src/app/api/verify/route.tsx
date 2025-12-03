@@ -2,10 +2,7 @@
 
 // src/app/api/verify/route.tsx
 import { NextRequest, NextResponse } from 'next/server';
-import { getNetworkTypeFromId, networkUrls } from '@/lib/contract';
-
-// Configuration
-const BLOCKFROST_PROJECT_ID = process.env.BLOCKFROST_PROJECT_ID;
+import { getNetworkTypeFromId, networkUrls, resolveBlockfrostProjectId } from '@/lib/contract';
 
 // Blockfrost API interfaces
 interface BlockfrostMetadataResponse {
@@ -103,10 +100,11 @@ function getExplorerUrl(txHash: string, networkId: number): string {
 async function fetchTransactionMetadata(
   hash: string,
   networkId: number,
+  projectId: string,
   maxPages: number = 50 // Configurable limit to prevent infinite loops
 ): Promise<BlockfrostMetadataResponse[]> {
-  if (!BLOCKFROST_PROJECT_ID) {
-    throw new Error('Blockfrost project ID not configured');
+  if (!projectId) {
+    throw new Error('Blockfrost project ID not configured for requested network');
   }
 
   const blockfrostUrl = getBlockfrostUrl(networkId);
@@ -127,7 +125,7 @@ async function fetchTransactionMetadata(
 
       const response = await fetch(metadataUrl, {
         headers: {
-          'project_id': BLOCKFROST_PROJECT_ID,
+          'project_id': projectId,
         },
         next: { revalidate: 60 } // Cache for 1 minute
       });
@@ -206,10 +204,11 @@ async function fetchTransactionMetadata(
 // Get transaction details from Blockfrost
 async function getTransactionDetails(
   txHash: string,
-  networkId: number
+  networkId: number,
+  projectId: string
 ): Promise<BlockfrostTransactionInfo | null> {
-  if (!BLOCKFROST_PROJECT_ID) {
-    throw new Error('Blockfrost project ID not configured');
+  if (!projectId) {
+    throw new Error('Blockfrost project ID not configured for requested network');
   }
 
   const blockfrostUrl = getBlockfrostUrl(networkId);
@@ -218,7 +217,7 @@ async function getTransactionDetails(
   try {
     const response = await fetch(txUrl, {
       headers: {
-        'project_id': BLOCKFROST_PROJECT_ID,
+        'project_id': projectId,
       },
       next: { revalidate: 60 } // Cache for 1 minute
     });
@@ -253,6 +252,7 @@ async function verifyHashOnBlockchain(
     }
 
     const networkType = getNetworkTypeFromId(networkId);
+    const blockfrostProjectId = resolveBlockfrostProjectId(networkType);
     const networkName = networkId === 1 ? 'Mainnet' : 'Preview Testnet';
 
     console.log(`🔍 Verifying hash on ${networkName}:`, {
@@ -263,7 +263,7 @@ async function verifyHashOnBlockchain(
     });
 
     // Fetch metadata from blockchain with pagination
-    const metadataResults = await fetchTransactionMetadata(hash, networkId);
+    const metadataResults = await fetchTransactionMetadata(hash, networkId, blockfrostProjectId);
 
     if (metadataResults.length === 0) {
       // If not found on specified network, provide helpful message
@@ -324,7 +324,7 @@ async function verifyHashOnBlockchain(
     }
 
     // Get additional transaction details
-    const txDetails = await getTransactionDetails(matchingTx.tx_hash, networkId);
+    const txDetails = await getTransactionDetails(matchingTx.tx_hash, networkId, blockfrostProjectId);
     
     // Calculate confirmations if we have block details
     let confirmations = undefined;
