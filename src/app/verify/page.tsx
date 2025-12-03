@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Shield, FileText, Upload, Hash, Download, CheckCircle, XCircle, Clock, Lock, ExternalLink } from 'lucide-react';
 
@@ -82,8 +82,19 @@ const getNetworkName = (networkId?: number): string => {
 function VerifyContent() {
   const params = useParams();
   const searchParams = useSearchParams();
-  const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>('csv');
-  const [hash, setHash] = useState<string>('');
+
+  const derivedHashParam = useMemo(() => {
+    if (params?.hash && typeof params.hash === 'string') {
+      return params.hash;
+    }
+    const queryHash = searchParams?.get('hash');
+    return queryHash ?? '';
+  }, [params, searchParams]);
+
+  const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>(
+    derivedHashParam ? 'hash' : 'csv'
+  );
+  const [hash, setHash] = useState<string>(derivedHashParam);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -92,15 +103,13 @@ function VerifyContent() {
   const [processingStep, setProcessingStep] = useState<string>('');
 
   useEffect(() => {
-    if (params?.hash && typeof params.hash === 'string') {
-      setHash(params.hash);
-      setVerificationMethod('hash');
-    } 
-    else if (searchParams?.get('hash')) {
-      setHash(searchParams.get('hash') || '');
-      setVerificationMethod('hash');
+    if (!derivedHashParam) {
+      return;
     }
-  }, [params, searchParams]);
+
+    setHash((prev) => (prev === derivedHashParam ? prev : derivedHashParam));
+    setVerificationMethod((prev) => (prev === 'hash' ? prev : 'hash'));
+  }, [derivedHashParam]);
 
   useEffect(() => {
     if (verificationMethod === 'hash') {
