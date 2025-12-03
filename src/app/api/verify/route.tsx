@@ -16,7 +16,7 @@ interface BlockfrostMetadataResponse {
 interface BlockfrostMetadataContent {
   hash: string;
   form_id: string;
-  response_id: string;
+  response_id?: string;
   timestamp: number;
   network_id?: number;
   version: string;
@@ -64,7 +64,7 @@ interface VerificationResult {
   metadata?: {
     hash: string;
     form_id: string;
-    response_id: string;
+    response_id?: string;
     timestamp: number;
     network_id?: number;
     version: string;
@@ -280,17 +280,32 @@ async function verifyHashOnBlockchain(
     }
 
     // Find the most recent matching transaction - KEEP ORIGINAL LOGIC
-    let matchingTx = null;
+    let matchingTx: BlockfrostMetadataResponse | null = null;
+    let matchedWithoutResponseId = false;
     for (const tx of metadataResults) {
       const metadata = tx.json_metadata;
       
       // Check if all provided parameters match
       const hashMatches = metadata.hash === hash;
       const formIdMatches = !formId || metadata.form_id === formId;
-      const responseIdMatches = !responseId || metadata.response_id === responseId;
+      let responseIdMatches = true;
+      let responseIdUnavailable = false;
+
+      if (responseId) {
+        if (metadata.response_id) {
+          responseIdMatches = metadata.response_id === responseId;
+        } else {
+          responseIdUnavailable = true;
+        }
+      }
       
+      if (responseIdUnavailable) {
+        responseIdMatches = true;
+      }
+
       if (hashMatches && formIdMatches && responseIdMatches) {
         matchingTx = tx;
+        matchedWithoutResponseId = Boolean(responseId && responseIdUnavailable);
         break;
       }
     }
@@ -321,9 +336,14 @@ async function verifyHashOnBlockchain(
       blockTime = txDetails.block_time;
     }
 
+    const successMessageBase = `Hash verified successfully on ${networkName}`;
+    const responseIdNotice = matchedWithoutResponseId
+      ? ' (response ID metadata unavailable for this record)'
+      : '';
+
     return {
       verified: true,
-      message: `Hash verified successfully on ${networkName}`,
+      message: `${successMessageBase}${responseIdNotice}`,
       transactionHash: matchingTx.tx_hash,
       metadata: {
         hash: matchingTx.json_metadata.hash,

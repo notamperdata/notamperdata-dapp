@@ -11,7 +11,7 @@ interface VerificationResult {
   metadata?: {
     hash: string;
     form_id: string;
-    response_id: string;
+    response_id?: string;
     timestamp: number;
     version: string;
     network_id?: number;

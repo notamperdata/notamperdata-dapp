@@ -30,7 +30,6 @@ interface StoreHashRequest {
   hash: string;
   metadata?: any;
   formId?: string;
-  responseId?: string;
   networkId?: number;
 }
 
@@ -40,7 +39,6 @@ interface StoreHashResponse {
     transactionHash: string;
     hash: string;
     formId?: string;
-    responseId?: string;
     network: {
       id: number;
       name: string;
@@ -101,7 +99,7 @@ async function initLucid(networkId: number): Promise<LucidEvolution> {
 
 async function storeHashOnBlockchain(
   hash: string, 
-  metadata: { formId?: string; responseId?: string; networkId: number }
+  metadata: { formId?: string; networkId: number }
 ): Promise<string> {
   try {
     const lucid = await initLucid(metadata.networkId);
@@ -110,11 +108,9 @@ async function storeHashOnBlockchain(
     const txMetadata = {
       hash: hash,
       form_id: metadata.formId || 'unknown',
-      response_id: metadata.responseId || 'unknown',
       timestamp: Date.now(),
       network_id: metadata.networkId,
-      version: "1.0",
-      architecture: "self-send"
+      version: "1.0"
     };
     
     const tx = lucid
@@ -148,7 +144,6 @@ async function handleHashStorage(request: NextRequest): Promise<NextResponse<Sto
       
       const hash = searchParams.get('hash');
       const formId = searchParams.get('formId');
-      const responseId = searchParams.get('responseId');
       const networkId = parseInt(searchParams.get('networkId') || '0');
       
       if (!hash) {
@@ -164,11 +159,9 @@ async function handleHashStorage(request: NextRequest): Promise<NextResponse<Sto
       body = {
         hash,
         formId: formId || undefined,
-        responseId: responseId || undefined,
         networkId,
         metadata: {
           formId,
-          responseId,
           method: 'GET',
           timestamp: Date.now()
         }
@@ -270,7 +263,6 @@ async function handleHashStorage(request: NextRequest): Promise<NextResponse<Sto
     
     const txHash = await storeHashOnBlockchain(body.hash, {
       formId: body.formId,
-      responseId: body.responseId,
       networkId
     });
     
@@ -289,7 +281,6 @@ async function handleHashStorage(request: NextRequest): Promise<NextResponse<Sto
         transactionHash: txHash,
         hash: body.hash,
         formId: body.formId,
-        responseId: body.responseId,
         network: {
           id: networkId,
           name: networkType,
@@ -358,8 +349,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       format: 'ak_[16 alphanumeric characters]'
     },
     requiredFields: ['hash'],
-    optionalFields: ['metadata', 'formId', 'responseId', 'networkId'],
-    getRequestFormat: '/api/storehash?hash={hash}&formId={formId}&responseId={responseId}&networkId={networkId}',
+    optionalFields: ['metadata', 'formId', 'networkId'],
+    getRequestFormat: '/api/storehash?hash={hash}&formId={formId}&networkId={networkId}',
     networkIds: {
       0: 'testnet',
       1: 'mainnet'
