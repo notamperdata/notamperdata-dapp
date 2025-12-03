@@ -17,19 +17,33 @@ export const PAYMENT_CONSTANTS = {
   PLATFORM_FEE_PERCENTAGE: 0, // No additional fees
 } as const;
 
-// Default fallback addresses (primarily for local/testing environments)
-const DEFAULT_PLATFORM_ADDRESSES = {
-  Preview: 'addr_test1wqg448fq8u4ry04dtf3jsxqhw0avejz887ze5x0mtgpgw9gzzhue3',
-  Preprod: 'addr_test1wqg448fq8u4ry04dtf3jsxqhw0avejz887ze5x0mtgpgw9gzzhue3',
-  Mainnet: 'addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3jcu5d8ps7zex2k2xt3uqxgjqnnj83ws8lhrn493x5cdqw2gq4vt'
-} as const;
+/**
+ * Retrieve and validate required platform wallet address env vars.
+ */
+type PlatformAddressEnvKey =
+  | 'NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_PREVIEW'
+  | 'NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_PREPROD'
+  | 'NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_MAINNET';
+
+const getRequiredAddress = (envKey: PlatformAddressEnvKey, networkLabel: string): string => {
+  const rawValue = sanitizeAddress(process.env[envKey]);
+  
+  if (!rawValue) {
+    const message = `[paymentConfig] Missing ${envKey} for ${networkLabel}. ` +
+      `Set ${envKey} to the platform wallet address for ${networkLabel} operations.`;
+    console.error(message);
+    throw new Error(message);
+  }
+  
+  return rawValue;
+};
 
 // Platform wallet addresses by network - target addresses for self-send transactions
 // Platform wallet sends to itself with metadata for cost-efficient hash storage
 export const PLATFORM_ADDRESSES = {
-  Preview: sanitizeAddress(process.env.NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_PREVIEW) || DEFAULT_PLATFORM_ADDRESSES.Preview,
-  Preprod: sanitizeAddress(process.env.NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_PREPROD) || DEFAULT_PLATFORM_ADDRESSES.Preprod,
-  Mainnet: sanitizeAddress(process.env.NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_MAINNET) || DEFAULT_PLATFORM_ADDRESSES.Mainnet
+  Preview: getRequiredAddress('NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_PREVIEW', 'Preview testnet'),
+  Preprod: getRequiredAddress('NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_PREPROD', 'Preprod testnet'),
+  Mainnet: getRequiredAddress('NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_MAINNET', 'Cardano Mainnet')
 } as const;
 
 // Network types
