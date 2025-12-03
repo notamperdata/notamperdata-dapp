@@ -269,13 +269,6 @@ export const paymentUtils = {
   },
 
   /**
-   * Get platform address by network type (legacy support)
-   */
-  getPlatformAddressByType: (_networkType: NetworkType): string => {
-    return getPlatformWalletAddress();
-  },
-
-  /**
    * Get blockfrost URL for given network ID
    */
   getBlockfrostUrl: (networkId: number): string => {
