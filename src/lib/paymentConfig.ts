@@ -2,6 +2,12 @@
 
 // src/lib/paymentConfig.ts
 
+// Helper to sanitize environment-provided addresses (trim stray whitespace/newlines)
+const sanitizeAddress = (value?: string): string => {
+  if (!value) return '';
+  return value.trim();
+};
+
 // Payment configuration and constants
 export const PAYMENT_CONSTANTS = {
   MIN_PAYMENT_AMOUNT: 1, // Minimum ADA payment
@@ -11,12 +17,19 @@ export const PAYMENT_CONSTANTS = {
   PLATFORM_FEE_PERCENTAGE: 0, // No additional fees
 } as const;
 
-// Platform wallet addresses by network - these are now the target addresses for self-send transactions
+// Default fallback addresses (primarily for local/testing environments)
+const DEFAULT_PLATFORM_ADDRESSES = {
+  Preview: 'addr_test1wqg448fq8u4ry04dtf3jsxqhw0avejz887ze5x0mtgpgw9gzzhue3',
+  Preprod: 'addr_test1wqg448fq8u4ry04dtf3jsxqhw0avejz887ze5x0mtgpgw9gzzhue3',
+  Mainnet: 'addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3jcu5d8ps7zex2k2xt3uqxgjqnnj83ws8lhrn493x5cdqw2gq4vt'
+} as const;
+
+// Platform wallet addresses by network - target addresses for self-send transactions
 // Platform wallet sends to itself with metadata for cost-efficient hash storage
 export const PLATFORM_ADDRESSES = {
-  Preview: process.env.NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_PREVIEW || 'addr_test1wqg448fq8u4ry04dtf3jsxqhw0avejz887ze5x0mtgpgw9gzzhue3',
-  Preprod: process.env.NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_PREPROD || 'addr_test1wqg448fq8u4ry04dtf3jsxqhw0avejz887ze5x0mtgpgw9gzzhue3',
-  Mainnet: process.env.NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_MAINNET || 'addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3jcu5d8ps7zex2k2xt3uqxgjqnnj83ws8lhrn493x5cdqw2gq4vt'
+  Preview: sanitizeAddress(process.env.NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_PREVIEW) || DEFAULT_PLATFORM_ADDRESSES.Preview,
+  Preprod: sanitizeAddress(process.env.NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_PREPROD) || DEFAULT_PLATFORM_ADDRESSES.Preprod,
+  Mainnet: sanitizeAddress(process.env.NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_MAINNET) || DEFAULT_PLATFORM_ADDRESSES.Mainnet
 } as const;
 
 // Network types
@@ -87,12 +100,15 @@ export const paymentValidation = {
   },
 
   /**
-   * Validate Cardano address format
+   * Validate Cardano address format (basic bech32 checks)
    */
   isValidAddress: (address: string): boolean => {
-    // Basic validation for Cardano addresses
+    const trimmed = (address || '').trim();
+    if (!trimmed) {
+      return false;
+    }
     // Mainnet addresses start with 'addr1', testnet with 'addr_test1'
-    return address.startsWith('addr_test1') || address.startsWith('addr1');
+    return trimmed.startsWith('addr_test1') || trimmed.startsWith('addr1');
   },
 
   /**
@@ -227,7 +243,16 @@ export const paymentUtils = {
    */
   getPlatformAddress: (networkId: number): string => {
     const networkType = getNetworkTypeFromId(networkId);
-    return PLATFORM_ADDRESSES[networkType];
+    const address = sanitizeAddress(PLATFORM_ADDRESSES[networkType]);
+    
+    if (!paymentValidation.isValidAddress(address)) {
+      throw new Error(
+        `Invalid platform wallet address for ${networkType}. ` +
+        `Check NEXT_PUBLIC_PLATFORM_WALLET_ADDRESS_${networkType.toUpperCase()}`
+      );
+    }
+    
+    return address;
   },
 
   /**
