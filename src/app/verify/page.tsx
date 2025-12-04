@@ -380,6 +380,7 @@ function VerifyContent() {
     const networkId = result.metadata?.network_id || result.network?.id;
     const txExplorerUrl = txHash ? getCardanoExplorerUrl(txHash, networkId) : '';
     const dataHashDisplay = generatedHash || result.metadata?.hash || 'N/A';
+    const logoUrl = `${window.location.origin}/logo.png`;
     
     console.log('📄 Generating PDF with:', { txHash, networkId, txExplorerUrl, dataHashDisplay });
 
@@ -490,7 +491,7 @@ function VerifyContent() {
     <body>
       <div class="header">
         <div class="logo">
-          <img src="/Logo.png" alt="NoTamperData" />
+          <img src="${logoUrl}" alt="NoTamperData" />
           NoTamperData
         </div>
         <div class="subtitle">Blockchain Dataset Verification Report</div>
